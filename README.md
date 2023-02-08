@@ -16,6 +16,11 @@
 3. Start commands
  - ros2 run roboscan_nsl3130 roboscan_publish_node
  - ros2 launch roboscan_nsl3130 camera.Launch.py
+
+# Set parameters
+ $rqt
+ (reconfigure)
+ 
  
  --- view ---
  
