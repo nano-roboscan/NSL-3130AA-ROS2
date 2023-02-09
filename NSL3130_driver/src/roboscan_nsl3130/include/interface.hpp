@@ -27,7 +27,7 @@ public:
   void setOffset(int32_t offset);
   void setMinAmplitude(uint16_t minAmplitude);
   void setRoi(const uint16_t x0, const uint16_t y0, const uint16_t x1, const uint16_t y1);
-  void setIntegrationTime(uint16_t, uint16_t, uint16_t, uint16_t);
+  void setIntegrationTime(uint16_t, uint16_t, uint16_t, uint16_t, uint8_t);
   void setHDRMode(uint8_t mode);
   void setModulation(const uint8_t index, const uint8_t channel);
   void setFilter(const bool medianFilter, const bool averageFilter, const uint16_t temporalFactor, const uint16_t temporalThreshold, const uint16_t edgeThreshold,
