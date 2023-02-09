@@ -194,7 +194,7 @@ public:
 
     interface.stopStream();    
     interface.setMinAmplitude(minAmplitude);
-    interface.setIntegrationTime(int0, int1, int2, intGr);
+    interface.setIntegrationTime(int0, int1, int2, intGr, grayscaleIlluminationMode);
         
     interface.setHDRMode((uint8_t)hdr_mode);
     interface.setFilter(medianFilter, averageFilter, static_cast<uint16_t>(temporalFilterFactor * 1000), temporalFilterThreshold, edgeThreshold,
@@ -334,7 +334,7 @@ public:
     interface.stopStream();
 
     interface.setMinAmplitude(minAmplitude);
-    interface.setIntegrationTime(int0, int1, int2, intGr);
+    interface.setIntegrationTime(int0, int1, int2, intGr, grayscaleIlluminationMode);
         
     interface.setHDRMode((uint8_t)hdr_mode);
     interface.setFilter(medianFilter, averageFilter, static_cast<uint16_t>(temporalFilterFactor * 1000), temporalFilterThreshold, edgeThreshold,
