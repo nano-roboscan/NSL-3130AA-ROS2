@@ -32,7 +32,8 @@ $ rqt
  (reconfigure)
 ```
 
-![Screenshot from 2023-02-13 18-46-31](https://user-images.githubusercontent.com/106071093/218613307-4dd2f279-a2cd-41fd-bb98-d59eb1e18ba9.png)
+![Screenshot from 2023-02-13 18-46-31](https://user-images.githubusercontent.com/106071093/218613496-e878af97-b103-4368-9c86-56e3085642bc.png)
+
 
 
 
