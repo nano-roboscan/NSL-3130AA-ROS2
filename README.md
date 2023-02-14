@@ -20,18 +20,24 @@ $ ros2 run roboscan_nsl3130 roboscan_publish_node
 $ ros2 launch roboscan_nsl3130 camera.Launch.py
 ```
 
-# Set parameters
-```
-$ rqt
- (reconfigure)
-```
- 
- 
 # NSL-3130AA View
 
 
   ![ROS2](https://user-images.githubusercontent.com/106071093/218378867-6792ac7b-4b2f-4227-9fa3-ef833f0fc784.png)
 
+
+# Set parameters
+```
+$ rqt
+ (reconfigure)
+```
+
+![Screenshot from 2023-02-13 18-46-31](https://user-images.githubusercontent.com/106071093/218613307-4dd2f279-a2cd-41fd-bb98-d59eb1e18ba9.png)
+
+
+
+
+ 
 
 
 
