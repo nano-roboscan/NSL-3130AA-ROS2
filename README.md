@@ -35,10 +35,10 @@ $ rqt
 ![Screenshot from 2023-02-13 18-46-31](https://user-images.githubusercontent.com/106071093/218613496-e878af97-b103-4368-9c86-56e3085642bc.png)
 
 
-channel 0 ~ 15
+channel = 0 ~ 15
 
-hdr_mode 0 : HDR off
-hdr_mode 1 : Temperal HDR
+hdr_mode 0 = HDR off
+hdr_mode 1 = Temperal HDR
 hdr_mode 2 : Spatial HDR
 
 imageType 0 : Grayscale 
