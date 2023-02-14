@@ -137,6 +137,10 @@ public:
       {
         hdr_mode = param.as_int();
       }
+      else if (param.get_name() == "imageType")
+      {
+        imageType = param.as_int();
+      }
       else if (param.get_name() == "int0")
       {
         int0 = param.as_int();
@@ -231,9 +235,10 @@ public:
       old_lensType = lensType;
 
     }
-    startStreaming();
+    //startStream = true;
     printf("setReconfigure OK\n\n");
-
+    waitKey(1);
+    startStreaming();
   }
 
   void initialise()
@@ -360,7 +365,9 @@ public:
       old_lensType = lensType;
     }
     printf("setParameters OK\n");
+
   }
+
 
   void startStreaming()
   {
@@ -462,6 +469,45 @@ public:
     return true;
   }
 
+  void getGrayscaleColor(cv::Mat &imageLidar, int x, int y, int value, double end_range )
+  {   
+    if (value == SATURATION)
+    {
+      imageLidar.at<Vec3b>(y, x)[0] = 128;
+      imageLidar.at<Vec3b>(y, x)[1] = 0;
+      imageLidar.at<Vec3b>(y, x)[2] = 255; 
+    }
+    else if (value == ADC_OVERFLOW)
+    {
+      imageLidar.at<Vec3b>(y, x)[0] = 255;
+      imageLidar.at<Vec3b>(y, x)[1] = 14;
+      imageLidar.at<Vec3b>(y, x)[2] = 169; 
+    }
+    else if (value > end_range)
+    {
+      imageLidar.at<Vec3b>(y, x)[0] = 255;
+      imageLidar.at<Vec3b>(y, x)[1] = 255;
+      imageLidar.at<Vec3b>(y, x)[2] = 255; 
+    }
+    else if (value < 0)
+    {
+      imageLidar.at<Vec3b>(y, x)[0] = 0;
+      imageLidar.at<Vec3b>(y, x)[1] = 0;
+      imageLidar.at<Vec3b>(y, x)[2] = 0; 
+    }
+    else
+    {
+      int color = value * (255/end_range);
+
+      //printf("color index = %d\n", color);
+
+      imageLidar.at<Vec3b>(y, x)[0] = color;
+      imageLidar.at<Vec3b>(y, x)[1] = color;
+      imageLidar.at<Vec3b>(y, x)[2] = color; 
+    }
+}
+
+
   bool setCameraInfo(sensor_msgs::srv::SetCameraInfo::Request& req, sensor_msgs::srv::SetCameraInfo::Response& res)
   {
     req.camera_info.width  = cameraInfo.width;
@@ -491,6 +537,7 @@ public:
     int x, y, k, l;
     auto qos_profile = rclcpp::QoS(rclcpp::KeepLast(10));
     auto data_stamp = s_rclcpp_clock.now();
+    cv::Mat imageLidar(height, width, CV_8UC3, Scalar(255, 255, 255));
 
     if(frame->dataType == Frame::DISTANCE || frame->dataType == Frame::AMPLITUDE || frame->dataType == Frame::DISTANCE_AND_GRAYSCALE || frame->dataType == Frame::DISTANCE_AMPLITUDE_GRAYSCALE ){
       sensor_msgs::msg::Image imgDistance;
@@ -552,6 +599,18 @@ public:
       imgDCSPub->publish(imgDCS);
     }
 
+
+    if(frame->dataType == Frame::GRAYSCALE){
+      uint16_t gray; 
+      for(k=0, l=0, y=0; y< frame->height; y++){
+        for(x=0; x< frame->width; x++, k++, l+=2){
+          gray = (frame->amplData[l+1] << 8)  + frame->amplData[l];
+          getGrayscaleColor(imageLidar, x, y, gray, 255);
+
+        }
+      }
+    }
+
     if(frame->dataType != Frame::GRAYSCALE){
         
       pointcloudPub = this->create_publisher<sensor_msgs::msg::PointCloud2>("roboscanPointCloud", qos_profile); 
@@ -569,22 +628,25 @@ public:
       double px, py, pz;
 
       RGB888Pixel* pTex1 = new RGB888Pixel[1];
-      cv::Mat imageLidar(height, width, CV_8UC3, Scalar(255, 255, 255));
         
 
       for(k=0, l=0, y=0; y< frame->height; y++){
           for(x=0; x< frame->width; x++, k++, l+=2){
             pcl::PointXYZI &p = cloud->points[k];
-            distance = (frame->distData[l+1] << 8) + frame->distData[l];
+            if(frame->dataType == Frame::DISTANCE || frame->dataType == Frame::AMPLITUDE || frame->dataType == Frame::DISTANCE_AND_GRAYSCALE || frame->dataType == Frame::DISTANCE_AMPLITUDE_GRAYSCALE)
+              distance = (frame->distData[l+1] << 8) + frame->distData[l];
+
+            if(frame->dataType == Frame::DCS)
+              distance = (frame->dcsData[l+1] << 8) + frame->dcsData[l];
 
             if(frame->dataType == Frame::AMPLITUDE)
               amplitude = (frame->amplData[l+1] << 8)  + frame->amplData[l];
 
-                
+            
             //distance 
             if(distance == LOW_AMPLITUDE)
               distance = 0;
-                
+            
 
             Convert_To_RGB24((double)distance, pTex1, 0.0f, 12500.0f);
             imageLidar.at<Vec3b>(y, x)[0] = pTex1->b;
@@ -628,11 +690,14 @@ public:
         msg.header.frame_id = "/map";
         pointcloudPub->publish(msg);  
 
-        imshow("NSL-31310AA DISTANCE", imageLidar);
-        waitKey(1);
-        delete[] pTex1;
-        
+        delete[] pTex1;        
       }
+      if(frame->dataType != Frame::GRAYSCALE){
+
+      }
+
+      imshow("NSL-31310AA IMAGE", imageLidar);
+      waitKey(1);
   }
 
 
@@ -653,4 +718,3 @@ int main(int argc, char ** argv)
   rclcpp::shutdown();
   return 0;
 }
-

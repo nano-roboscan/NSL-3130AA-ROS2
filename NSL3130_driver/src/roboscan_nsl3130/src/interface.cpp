@@ -147,26 +147,27 @@ void Interface::setRoi(const uint16_t x0, const uint16_t y0, const uint16_t x1, 
 void Interface::setIntegrationTime(uint16_t low, uint16_t mid, uint16_t high, uint16_t gray, uint8_t grayMode)
 {
     if(low > 2500)
-    {
+    {  
         low = 2500;
     }
-    if(mid > 2500)
+    if(mid > 2500)  
     {
         mid = 2500;
     }
-    if(high > 2500)
+    if(high > 2500)  
     {
         high = 2500;
     }
+
     if(grayMode == 1)
-    {
+    { 
         gray = 2500;
     }
     else
-    {
+    { 
         gray = 50000;
     }
-    
+
     std::vector<uint8_t> payload;
     uint16_t command = COMMAND_SET_INT_TIMES;
 
