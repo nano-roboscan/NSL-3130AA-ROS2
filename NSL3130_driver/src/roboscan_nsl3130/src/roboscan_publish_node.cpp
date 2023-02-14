@@ -231,7 +231,7 @@ public:
       old_lensType = lensType;
 
     }
-    startStream = true;
+    startStreaming();
     printf("setReconfigure OK\n\n");
 
   }
@@ -350,7 +350,7 @@ public:
 
     interface.setModulation(modIndex, channel);
     printf("modIndex = %d\n", modIndex);
-    //interface.setRoi(roi_leftX, roi_topY, roi_rightX, roi_bottomY);
+    interface.setRoi(roi_leftX, roi_topY, roi_rightX, roi_bottomY);
 
 
     if(old_lensCenterOffsetX != lensCenterOffsetX || old_lensCenterOffsetY != lensCenterOffsetY || old_lensType != lensType){
