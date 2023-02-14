@@ -39,24 +39,24 @@ channel = 0 ~ 15
 
 hdr_mode 0 = HDR off
 hdr_mode 1 = Temperal HDR
-hdr_mode 2 : Spatial HDR
+hdr_mode 2 = Spatial HDR
 
-imageType 0 : Grayscale 
-imageType 1 : Distance 
-imageType 2 : Distance / Amplitude
-imageType 3 : DCS
-imageType 4 : Distance / Amplitude / Grayscale
+imageType 0 = Grayscale 
+imageType 1 = Distance 
+imageType 2 = Distance / Amplitude
+imageType 3 = DCS
+imageType 4 = Distance / Amplitude / Grayscale
 
-int0 , int2, int3 : 0 ~ 4000
+int0 , int2, int3 = 0 ~ 4000
 
-intGr 0 ~ 2500
+intGr = 0 ~ 2500
 
-modIndex 0 : 24MHz
-modIndex 1 : 12MHz
-modIndex 2 : 6MHz
-modIndex 3 : 3MHz
-modIndex 4 : 1.5MHz
-modIndex 5 : 0.75MHz
+modIndex 0 = 24MHz
+modIndex 1 = 12MHz
+modIndex 2 = 6MHz
+modIndex 3 = 3MHz
+modIndex 4 = 1.5MHz
+modIndex 5 = 0.75MHz
 
 
  
