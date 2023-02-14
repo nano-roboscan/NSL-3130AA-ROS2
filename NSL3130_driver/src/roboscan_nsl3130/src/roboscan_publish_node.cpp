@@ -245,6 +245,8 @@ public:
   {
     printf("Init roboscan_nsl3130 node\n");
 
+    interface.stopStream();
+    
     lensType = 2;
     lensCenterOffsetX = 0;
     lensCenterOffsetY = 0;
