@@ -35,7 +35,28 @@ $ rqt
 ![Screenshot from 2023-02-13 18-46-31](https://user-images.githubusercontent.com/106071093/218613496-e878af97-b103-4368-9c86-56e3085642bc.png)
 
 
+channel 0 ~ 15
 
+hdr_mode 0 : HDR off
+hdr_mode 1 : Temperal HDR
+hdr_mode 2 : Spatial HDR
+
+imageType 0 : Grayscale 
+imageType 1 : Distance 
+imageType 2 : Distance / Amplitude
+imageType 3 : DCS
+imageType 4 : Distance / Amplitude / Grayscale
+
+int0 , int2, int3 : 0 ~ 4000
+
+intGr 0 ~ 2500
+
+modIndex 0 : 24MHz
+modIndex 1 : 12MHz
+modIndex 2 : 6MHz
+modIndex 3 : 3MHz
+modIndex 4 : 1.5MHz
+modIndex 5 : 0.75MHz
 
 
  
