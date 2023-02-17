@@ -416,24 +416,24 @@ int8_t Interface::boolToInt8(const bool value)
 
 boost::signals2::connection Interface::subscribeFrame(std::function<void (std::shared_ptr<Frame>)> onFrameReady)
 {
-    frameReady.connect(onFrameReady);
+	return frameReady.connect(onFrameReady);
 }
 
 boost::signals2::connection Interface::subscribeCameraInfo(std::function<void (std::shared_ptr<CameraInfo>)> onCameraInfoReady)
 {
-    cameraInfoReady.connect(onCameraInfoReady);
+	return cameraInfoReady.connect(onCameraInfoReady);
 }
 
 std::shared_ptr<CameraInfo> Interface::getCameraInfo(const Packet& p) {
     std::shared_ptr<CameraInfo> camInfo(new CameraInfo);
 
     int offset = 23;
-    camInfo->width  = (p[offset++] << 8) + p[offset++];
-    camInfo->height = (p[offset++] << 8) + p[offset++];
-    camInfo->roiX0  = (p[offset++] << 8) + p[offset++];
-    camInfo->roiY0  = (p[offset++] << 8) + p[offset++];
-    camInfo->roiX1  = (p[offset++] << 8) + p[offset++];
-    camInfo->roiY1  = (p[offset++] << 8) + p[offset++];
+    camInfo->width  = (p[offset+0] << 8) + p[offset+1];
+    camInfo->height = (p[offset+2] << 8) + p[offset+3];
+    camInfo->roiX0  = (p[offset+4] << 8) + p[offset+5];
+    camInfo->roiY0  = (p[offset+6] << 8) + p[offset+7];
+    camInfo->roiX1  = (p[offset+8] << 8) + p[offset+9];
+    camInfo->roiY1  = (p[offset+10] << 8) + p[offset+11];
 
     return camInfo;
 }

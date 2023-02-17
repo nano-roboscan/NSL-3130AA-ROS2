@@ -30,9 +30,9 @@ public:
   void sendCommand(const std::vector<uint8_t> &);
 
 private:
-  mutable State state, previousState;
-  tcp::socket socket;
   tcp::resolver resolver;
+  tcp::socket socket;
+  mutable State state, previousState;
 
   void connect();
   void disconnect();

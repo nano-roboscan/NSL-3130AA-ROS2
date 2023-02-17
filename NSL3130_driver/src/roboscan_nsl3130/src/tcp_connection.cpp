@@ -7,6 +7,7 @@ namespace nanosys {
 
 typedef std::vector<uint8_t> Packet;
 
+
 TcpConnection::TcpConnection(boost::asio::io_service& ioService)
   : resolver(ioService), socket(ioService), state(STATE_DISCONNECTED) {
   connect();
@@ -15,7 +16,7 @@ TcpConnection::TcpConnection(boost::asio::io_service& ioService)
 TcpConnection::~TcpConnection() {
   try {
     disconnect();
-  } catch (boost::system::system_error e) {
+  } catch (boost::system::system_error &e) {
     std::cerr << e.what() << std::endl;
   }
 }
@@ -24,14 +25,14 @@ void TcpConnection::sendCommand(const std::vector<uint8_t>& data) {
 
   if (!isConnected()) return;
   uint32_t data_len = data.size();
-  size_t buf_size = MARKER_SIZE + sizeof(data_len) + data_len + MARKER_SIZE;
+//  size_t buf_size = MARKER_SIZE + sizeof(data_len) + data_len + MARKER_SIZE;
   std::ostringstream os;
   os << START_MARKER;
   os << static_cast<uint8_t>((data_len >> 24) & 0xff);
   os << static_cast<uint8_t>((data_len >> 16) & 0xff);
   os << static_cast<uint8_t>((data_len >>  8) & 0xff);
   os << static_cast<uint8_t>((data_len >>  0) & 0xff);
-  for (int i = 0; i < data_len; ++i) {
+  for (uint32_t i = 0; i < data_len; ++i) {
     os << static_cast<uint8_t>(data[i]);
   }
   os << END_MARKER;
@@ -82,7 +83,7 @@ void TcpConnection::waitAck() {
   boost::system::error_code error;
 
   this->updateState(STATE_WAIT_ACK);
-  size_t len = socket.read_some(boost::asio::buffer(buf), error);
+  socket.read_some(boost::asio::buffer(buf), error);
 
   if (error) {
     throw boost::system::system_error(error);
