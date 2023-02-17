@@ -7,7 +7,7 @@ namespace nanosys {
 
 Interface::Interface() : tcpConnection(ioService),
     udpServer(ioService),
-    isStreaming(false),
+    isStreaming(0),
     dataType(0),
     currentFrame_id(0),
     data(Packet(25+320*240*4*2))
@@ -19,6 +19,8 @@ Interface::Interface() : tcpConnection(ioService),
         uint32_t offset = (p[8] << 24) + (p[9] << 16) + (p[10] << 8) + p[11];
         uint16_t payloadSize = (p[6] << 8) + p[7];
 
+		if( !isStreaming ) return;
+
         if(packetNum == 0) { // new frame
             uint16_t width  = (p[23] << 8) + p[24];
             uint16_t height = (p[25] << 8) + p[26];
@@ -28,7 +30,7 @@ Interface::Interface() : tcpConnection(ioService),
             memcpy(&data[offset], &p[Frame::UDP_HEADER_OFFSET], payloadSize);
             cameraInfoReady(getCameraInfo(p));
 
-        }else{
+        }else if( currentFrame.use_count() > 0 ){
             uint32_t numPackets = (p[12] << 24) + (p[13] << 16) + (p[14] << 8) + p[15];
             memcpy(&data[offset], &p[Frame::UDP_HEADER_OFFSET], payloadSize);
 
