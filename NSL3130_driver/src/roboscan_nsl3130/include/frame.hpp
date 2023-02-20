@@ -14,17 +14,17 @@ namespace nanosys {
 
         static const int UDP_HEADER_OFFSET = 20;
 
-        uint8_t stride;        
+        uint64_t frame_id;        
         uint16_t dataType;
         uint16_t width;
         uint16_t height;
-        uint16_t payloadHeaderOffset;
         uint32_t px_size;        
-        uint64_t frame_id;        
+        uint8_t stride;        
+        std::vector<uint8_t> grayData;
         std::vector<uint8_t> distData;
         std::vector<uint8_t> amplData;
         std::vector<uint8_t> dcsData;
-        std::vector<uint8_t> grayData;
+        uint16_t payloadHeaderOffset;
 
 
         Frame(uint16_t, uint64_t, uint16_t, uint16_t, uint16_t);

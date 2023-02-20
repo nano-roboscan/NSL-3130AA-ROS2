@@ -48,11 +48,6 @@ public:
   std::shared_ptr<CameraInfo> getCameraInfo(const Packet &);
 
 private:
-  uint8_t isStreaming;
-  uint8_t dataType;
-  uint64_t currentFrame_id;  
-
-
   // OPCODE ...
   const static uint16_t COMMAND_SET_ROI = 0;
   const static uint16_t COMMAND_SET_INT_TIMES = 1;
@@ -81,7 +76,6 @@ private:
 
 
 
-  Packet data;
   std::shared_ptr<Frame> currentFrame;
   boost::asio::io_service ioService;
   boost::scoped_ptr<boost::thread> serverThread;
@@ -89,6 +83,12 @@ private:
   boost::signals2::signal<void (std::shared_ptr<CameraInfo>)> cameraInfoReady;
   TcpConnection tcpConnection;
   UdpServer udpServer;
+  uint8_t isStreaming;
+  uint8_t dataType;
+  uint64_t currentFrame_id;  
+  Packet data;
+
+
 
   void setDataType(uint8_t);  
   void streamMeasurement(uint8_t);

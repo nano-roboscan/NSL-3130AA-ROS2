@@ -7,7 +7,7 @@ namespace nanosys {
 
 Interface::Interface() : tcpConnection(ioService),
     udpServer(ioService),
-    isStreaming(false),
+    isStreaming(0),
     dataType(0),
     currentFrame_id(0),
     data(Packet(25+320*240*4*2))
@@ -19,6 +19,8 @@ Interface::Interface() : tcpConnection(ioService),
         uint32_t offset = (p[8] << 24) + (p[9] << 16) + (p[10] << 8) + p[11];
         uint16_t payloadSize = (p[6] << 8) + p[7];
 
+		if( !isStreaming ) return;
+
         if(packetNum == 0) { // new frame
             uint16_t width  = (p[23] << 8) + p[24];
             uint16_t height = (p[25] << 8) + p[26];
@@ -28,7 +30,7 @@ Interface::Interface() : tcpConnection(ioService),
             memcpy(&data[offset], &p[Frame::UDP_HEADER_OFFSET], payloadSize);
             cameraInfoReady(getCameraInfo(p));
 
-        }else{
+        }else if( currentFrame.use_count() > 0 ){
             uint32_t numPackets = (p[12] << 24) + (p[13] << 16) + (p[14] << 8) + p[15];
             memcpy(&data[offset], &p[Frame::UDP_HEADER_OFFSET], payloadSize);
 
@@ -416,24 +418,24 @@ int8_t Interface::boolToInt8(const bool value)
 
 boost::signals2::connection Interface::subscribeFrame(std::function<void (std::shared_ptr<Frame>)> onFrameReady)
 {
-    frameReady.connect(onFrameReady);
+	return frameReady.connect(onFrameReady);
 }
 
 boost::signals2::connection Interface::subscribeCameraInfo(std::function<void (std::shared_ptr<CameraInfo>)> onCameraInfoReady)
 {
-    cameraInfoReady.connect(onCameraInfoReady);
+	return cameraInfoReady.connect(onCameraInfoReady);
 }
 
 std::shared_ptr<CameraInfo> Interface::getCameraInfo(const Packet& p) {
     std::shared_ptr<CameraInfo> camInfo(new CameraInfo);
 
     int offset = 23;
-    camInfo->width  = (p[offset++] << 8) + p[offset++];
-    camInfo->height = (p[offset++] << 8) + p[offset++];
-    camInfo->roiX0  = (p[offset++] << 8) + p[offset++];
-    camInfo->roiY0  = (p[offset++] << 8) + p[offset++];
-    camInfo->roiX1  = (p[offset++] << 8) + p[offset++];
-    camInfo->roiY1  = (p[offset++] << 8) + p[offset++];
+    camInfo->width  = (p[offset+0] << 8) + p[offset+1];
+    camInfo->height = (p[offset+2] << 8) + p[offset+3];
+    camInfo->roiX0  = (p[offset+4] << 8) + p[offset+5];
+    camInfo->roiY0  = (p[offset+6] << 8) + p[offset+7];
+    camInfo->roiX1  = (p[offset+8] << 8) + p[offset+9];
+    camInfo->roiY1  = (p[offset+10] << 8) + p[offset+11];
 
     return camInfo;
 }
