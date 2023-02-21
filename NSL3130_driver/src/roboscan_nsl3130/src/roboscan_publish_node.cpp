@@ -534,7 +534,7 @@ public:
   }
 
 
-  void updateFrame(std::shared_ptr<Frame> frame)
+void updateFrame(std::shared_ptr<Frame> frame)
   {
     int x, y, k, l;
     auto qos_profile = rclcpp::QoS(rclcpp::KeepLast(10));
@@ -546,7 +546,7 @@ public:
       imgDistancePub = this->create_publisher<sensor_msgs::msg::Image>("roboscanDistance", qos_profile); 
         
       imgDistance.header.stamp = s_rclcpp_clock.now();
-      imgDistance.header.frame_id = "/roboscan_frame";
+      imgDistance.header.frame_id = "roboscan_frame";
       imgDistance.height = static_cast<uint32_t>(frame->height);
       imgDistance.width = static_cast<uint32_t>(frame->width);
       imgDistance.encoding = sensor_msgs::image_encodings::MONO16;
@@ -561,7 +561,7 @@ public:
       imgAmplPub = this->create_publisher<sensor_msgs::msg::Image>("roboscanAmpl", qos_profile); 
         
       imgAmpl.header.stamp = s_rclcpp_clock.now();
-      imgAmpl.header.frame_id = "/roboscan_frame";
+      imgAmpl.header.frame_id = "roboscan_frame";
       imgAmpl.height = static_cast<uint32_t>(frame->height);
       imgAmpl.width = static_cast<uint32_t>(frame->width);
       imgAmpl.encoding = sensor_msgs::image_encodings::MONO16;
@@ -576,7 +576,7 @@ public:
       imgGrayPub = this->create_publisher<sensor_msgs::msg::Image>("roboscanGray", qos_profile); 
         
       imgGray.header.stamp = s_rclcpp_clock.now();
-      imgGray.header.frame_id = "/roboscan_frame";
+      imgGray.header.frame_id = "roboscan_frame";
       imgGray.height = static_cast<uint32_t>(frame->height);
       imgGray.width = static_cast<uint32_t>(frame->width);
       imgGray.encoding = sensor_msgs::image_encodings::MONO16;
@@ -591,7 +591,7 @@ public:
       imgDCSPub = this->create_publisher<sensor_msgs::msg::Image>("roboscanDCS", qos_profile); 
         
       imgDCS.header.stamp = s_rclcpp_clock.now();
-      imgDCS.header.frame_id = "/roboscan_frame";
+      imgDCS.header.frame_id = "roboscan_frame";
       imgDCS.height = static_cast<uint32_t>(frame->height) * 4;
       imgDCS.width = static_cast<uint32_t>(frame->width);
       imgDCS.encoding = sensor_msgs::image_encodings::MONO16;
@@ -619,7 +619,7 @@ public:
 
       const size_t nPixel = frame->width * frame->height;
       pcl::PointCloud<pcl::PointXYZI>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZI>());
-      cloud->header.frame_id = "/roboscan_frame";
+      cloud->header.frame_id = "roboscan_frame";
       cloud->header.stamp = pcl_conversions::toPCL(s_rclcpp_clock.now());
       cloud->width = static_cast<uint32_t>(frame->width);
       cloud->height = static_cast<uint32_t>(frame->height);
@@ -664,17 +664,17 @@ public:
 
               if(cartesian){
                 cartesianTransform.transformPixel(x, y, distance, px, py, pz);
-                  p.x = static_cast<float>(px / 1000.0); //mm -> m
-                  p.y = static_cast<float>(py / 1000.0);
-                  p.z = static_cast<float>(pz / 1000.0);
+                  p.x = static_cast<float>(pz / 1000.0); //mm -> m
+                  p.y = static_cast<float>(px / 1000.0);
+                  p.z = static_cast<float>(-py / 1000.0);
 
                   if(frame->dataType == Frame::AMPLITUDE) p.intensity = static_cast<float>(amplitude);
                   else p.intensity = static_cast<float>(pz / 1000.0);
 
                   }else{
-                    p.x = x / 100.0;
-                    p.y = y / 100.0;
-                    p.z = distance / 1000.0;
+                    p.x = distance / 1000.0;
+                    p.y = x / 100.0;
+                    p.z = -y / 1000.0;
                     if(frame->dataType == Frame::AMPLITUDE) p.intensity =  static_cast<float>(amplitude);
                     else p.intensity = static_cast<float>(distance / 1000.0);
                   }
@@ -689,7 +689,7 @@ public:
         sensor_msgs::msg::PointCloud2 msg;
         pcl::toROSMsg(*cloud, msg);
         msg.header.stamp = data_stamp;
-        msg.header.frame_id = "/roboscan_frame";
+        msg.header.frame_id = "roboscan_frame";
         pointcloudPub->publish(msg);  
 
         delete[] pTex1;        
