@@ -626,7 +626,9 @@ void updateFrame(std::shared_ptr<Frame> frame)
       cloud->is_dense = false;
       cloud->points.resize(nPixel);
 
-      uint16_t distance, amplitude;
+      uint16_t distance = 0;
+      uint16_t amplitude = 0;
+      
       double px, py, pz;
 
       RGB888Pixel* pTex1 = new RGB888Pixel[1];
