@@ -71,6 +71,7 @@ ament_target_dependencies(roboscan_publish_node
 )
 
 target_link_libraries(roboscan_publish_node 
+${PCL_LIBRARIES}
 ${Boost_SYSTEM_LIBRARY}
 ${Boost_LIBRARIES})
 
