@@ -36,6 +36,8 @@ $ rqt
 
 
 ```
+
+cvShow : Image Viewer on/off
 channel : 0 ~ 15
 
 hdr_mode 0 : HDR off
