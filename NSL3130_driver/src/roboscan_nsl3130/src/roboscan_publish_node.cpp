@@ -23,109 +23,42 @@
 #include <sys/stat.h>
 #include <cstdlib>
 #include <unistd.h>
-
-//Lidar Fixed Parameters
-#define LOW_AMPLITUDE               64001
-#define ADC_OVERFLOW                64002
-#define SATURATION                  64003
-#define BAD_PIXEL                   64004
-#define INFERENCE                   64007
-#define EDGE_FILTERED               64008
+#include "roboscan_publish_node.hpp"
 
 
 using namespace nanosys;
 using namespace std::chrono_literals;
 using namespace cv;
 
-//set Parameters~
-int imageType; //image and aquisition type: 0 - grayscale, 1 - distance, 2 - distance_amplitude
-int lensType;  //0- wide field, 1- standard field, 2 - narrow field
-int old_lensType;
-bool medianFilter;
-bool averageFilter;
-double temporalFilterFactor;
-int temporalFilterThreshold;
-int edgeThreshold;
-int temporalEdgeThresholdLow;
-int temporalEdgeThresholdHigh;
-int interferenceDetectionLimit;
-bool startStream;
-bool useLastValue;
-bool publishPointCloud;
-bool cartesian;
-int channel;
-int frequencyModulation;
-int int0, int1, int2, intGr; //integration times
-int hdr_mode; //0 - hdr off, 1 - hdr spatial, 2 - hdr temporal
-int minAmplitude;
-int lensCenterOffsetX = 0;
-int lensCenterOffsetY = 0;
-int old_lensCenterOffsetX = 0;
-int old_lensCenterOffsetY = 0;
-uint8_t modIndex = 0;
 
 
-int roi_leftX = 0;
-int roi_topY = 0;
-int roi_rightX = 319;
-int roi_bottomY = 239;
-// ~set Parmeters
 
-const int width   = 320;
-const int width2  = 160;
-const int height  = 240;
-const int height2 = 120;
-const double sensorPixelSizeMM = 0.02; //camera sensor pixel size 20x20 um
+roboscanPublisher::roboscanPublisher() : Node("roboscan_publish_node")
+{ 
+    auto qos_profile = rclcpp::QoS(rclcpp::KeepLast(10));
 
-uint8_t grayscaleIlluminationMode = 0;
-uint8_t bAdcOverflow = 1;
-uint8_t bSaturation = 1;
+    imgDistancePub = this->create_publisher<sensor_msgs::msg::Image>("roboscanDistance", qos_profile); 
+    imgAmplPub = this->create_publisher<sensor_msgs::msg::Image>("roboscanAmpl", qos_profile); 
+    imgGrayPub = this->create_publisher<sensor_msgs::msg::Image>("roboscanGray", qos_profile); 
+    imgDCSPub = this->create_publisher<sensor_msgs::msg::Image>("roboscanDCS", qos_profile); 
+    pointcloudPub = this->create_publisher<sensor_msgs::msg::PointCloud2>("roboscanPointCloud", qos_profile); 
 
-uint32_t frameSeq;
-
-boost::signals2::connection connectionFrames;
-boost::signals2::connection connectionCameraInfo;
-
-rclcpp::Service<sensor_msgs::srv::SetCameraInfo>::SharedPtr cameraInfoService;
-
-Interface interface;
-CartesianTransform cartesianTransform;
-sensor_msgs::msg::CameraInfo cameraInfo;
-
-
-static rclcpp::Clock s_rclcpp_clock;
-
-rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr imgDistancePub;
-rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr imgAmplPub;
-rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr imgGrayPub;
-rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr imgDCSPub;
-rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pointcloudPub;
-
-
-class roboscanPublisher : public rclcpp::Node { 
-
-public:
-  typedef struct _RGB888Pixel
-  {
-    unsigned char r;
-    unsigned char g;
-    unsigned char b;
-  } RGB888Pixel;
-
-  roboscanPublisher() : Node("roboscan_publish_node")
-  { 
-    
-    initialise();
-    setParameters();
-    startStreaming();
+    printf("Init...\n");
+    roboscanPublisher::initialise();
+    roboscanPublisher::setParameters();
+    roboscanPublisher::startStreaming();
     callback_handle_ = this->add_on_set_parameters_callback(std::bind(&roboscanPublisher::parametersCallback, this, std::placeholders::_1));
 
 
-    RCLCPP_INFO(this->get_logger(), "++Start roboscanPublisher()....");
+    printf("\nRun rqt to view the image!\n");
     
-  } 
+} 
 
-  rcl_interfaces::msg::SetParametersResult parametersCallback( const std::vector<rclcpp::Parameter> &parameters)
+roboscanPublisher::~roboscanPublisher()
+{ 
+}
+
+  rcl_interfaces::msg::SetParametersResult roboscanPublisher::parametersCallback( const std::vector<rclcpp::Parameter> &parameters)
   {
     rcl_interfaces::msg::SetParametersResult result;
     result.successful = true;
@@ -133,106 +66,113 @@ public:
     // Here update class attributes, do some actions, etc.
     for (const auto &param: parameters)
     {
-      if (param.get_name() == "hdr_mode")
+      if (param.get_name() == "B. lensType")
       {
-        hdr_mode = param.as_int();
+        lidarParam.lensType = param.as_int();
       }
-      else if (param.get_name() == "imageType")
+      else if (param.get_name() == "C. imageType")
       {
-        imageType = param.as_int();
+        lidarParam.imageType = param.as_int();
       }
-      else if (param.get_name() == "int0")
+      else if (param.get_name() == "D. hdr_mode")
       {
-        int0 = param.as_int();
+        lidarParam.hdr_mode = param.as_int();
       }
-      else if (param.get_name() == "int1")
+      else if (param.get_name() == "E. int0")
       {
-        int1 = param.as_int();
+        lidarParam.int0 = param.as_int();
       }
-      else if (param.get_name() == "int2")
+      else if (param.get_name() == "F. int1")
       {
-        int2 = param.as_int();
+        lidarParam.int1 = param.as_int();
       }
-      else if (param.get_name() == "intGr")
+      else if (param.get_name() == "G. int2")
       {
-        intGr = param.as_int();
+        lidarParam.int2 = param.as_int();
       }
-      else if (param.get_name() == "minAmplitude")
+      else if (param.get_name() == "H. intGr")
       {
-        minAmplitude = param.as_int();
+        lidarParam.intGr = param.as_int();
       }
-      else if (param.get_name() == "modIndex")
+      else if (param.get_name() == "I. minAmplitude")
       {
-        modIndex = param.as_int();
+        lidarParam.minAmplitude = param.as_int();
       }
-      else if (param.get_name() == "channel")
+      else if (param.get_name() == "J. modIndex")
       {
-        channel = param.as_int();
+        lidarParam.modIndex = param.as_int();
       }
-      else if (param.get_name() == "roi_leftX")
+      else if (param.get_name() == "K. channel")
       {
-        roi_leftX = param.as_int();
+        lidarParam.channel = param.as_int();
       }
-      else if (param.get_name() == "roi_topY")
+      else if (param.get_name() == "L. roi_leftX")
       {
-        roi_topY = param.as_int();
+        lidarParam.roi_leftX = param.as_int();
       }
-      else if (param.get_name() == "roi_rightX")
+      else if (param.get_name() == "M. roi_topY")
       {
-        roi_rightX = param.as_int();
+        lidarParam.roi_topY = param.as_int();
       }
-      else if (param.get_name() == "roi_bottomY")
+      else if (param.get_name() == "N. roi_rightX")
       {
-        roi_bottomY = param.as_int();
+        lidarParam.roi_rightX = param.as_int();
+      }
+      else if (param.get_name() == "O. roi_bottomY")
+      {
+        lidarParam.roi_bottomY = param.as_int();
+      }
+      else if (param.get_name() == "A. cvShow")
+      {
+        lidarParam.cvShow = param.as_bool();
       }
     }
     setReconfigure();
     return result;
   }
 
-  void setReconfigure()
+  void roboscanPublisher::setReconfigure()
   {
     //int0 = integrationTime0;
 
     printf("setReconfigure\n");
 
     interface.stopStream();    
-    interface.setMinAmplitude(minAmplitude);
-    interface.setIntegrationTime(int0, int1, int2, intGr, grayscaleIlluminationMode);
+    interface.setMinAmplitude(lidarParam.minAmplitude);
+    interface.setIntegrationTime(lidarParam.int0, lidarParam.int1, lidarParam.int2, lidarParam.intGr, lidarParam.grayscaleIlluminationMode);
         
-    interface.setHDRMode((uint8_t)hdr_mode);
-    interface.setFilter(medianFilter, averageFilter, static_cast<uint16_t>(temporalFilterFactor * 1000), temporalFilterThreshold, edgeThreshold,
-                        temporalEdgeThresholdLow, temporalEdgeThresholdHigh, interferenceDetectionLimit, useLastValue);
+    interface.setHDRMode((uint8_t)lidarParam.hdr_mode);
+    interface.setFilter(lidarParam.medianFilter, lidarParam.averageFilter, static_cast<uint16_t>(lidarParam.temporalFilterFactor * 1000), lidarParam.temporalFilterThreshold, lidarParam.edgeThreshold,
+                        lidarParam.temporalEdgeThresholdLow, lidarParam.temporalEdgeThresholdHigh, lidarParam.interferenceDetectionLimit, lidarParam.useLastValue);
 
-    interface.setAdcOverflowSaturation(bAdcOverflow, bSaturation);
-    interface.setGrayscaleIlluminationMode(grayscaleIlluminationMode);
+    interface.setAdcOverflowSaturation(lidarParam.bAdcOverflow, lidarParam.bSaturation);
+    interface.setGrayscaleIlluminationMode(lidarParam.grayscaleIlluminationMode);
    
-    uint8_t modIndex;
-    if(frequencyModulation == 0) modIndex = 1;
-    else if(frequencyModulation == 1)  modIndex = 0;
-    else    modIndex = frequencyModulation;
+    if(lidarParam.frequencyModulation == 0) lidarParam.modIndex = 1;
+    else if(lidarParam.frequencyModulation == 1)  lidarParam.modIndex = 0;
+    else    lidarParam.modIndex = lidarParam.frequencyModulation;
 
-    interface.setModulation(modIndex, channel);
-    interface.setRoi(roi_leftX, roi_topY, roi_rightX, roi_bottomY);
+    interface.setModulation(lidarParam.modIndex, lidarParam.channel);
+    interface.setRoi(lidarParam.roi_leftX, lidarParam.roi_topY, lidarParam.roi_rightX, lidarParam.roi_bottomY);
 
-    if(startStream){
+    if(lidarParam.startStream){
 
-      if(imageType == Frame::GRAYSCALE) interface.streamGrayscale();
-      else if(imageType == Frame::DISTANCE) interface.streamDistance();
-      else if(imageType == Frame::AMPLITUDE) interface.streamDistanceAmplitude();
-      else if(imageType == Frame::DISTANCE_AMPLITUDE_GRAYSCALE) interface.streamDistanceAmplitudeGrayscale();
-      else if(imageType == Frame::DCS) interface.streamDCS();
+      if(lidarParam.imageType == Frame::GRAYSCALE) interface.streamGrayscale();
+      else if(lidarParam.imageType == Frame::DISTANCE) interface.streamDistance();
+      else if(lidarParam.imageType == Frame::AMPLITUDE) interface.streamDistanceAmplitude();
+      else if(lidarParam.imageType == Frame::DISTANCE_AMPLITUDE_GRAYSCALE) interface.streamDistanceAmplitudeGrayscale();
+      else if(lidarParam.imageType == Frame::DCS) interface.streamDCS();
       else interface.streamDistanceGrayscale();
 
     }else{
       interface.stopStream();
     }
 
-    if(old_lensCenterOffsetX != lensCenterOffsetX || old_lensCenterOffsetY != lensCenterOffsetY || old_lensType != lensType){
-      cartesianTransform.initLensTransform(sensorPixelSizeMM, width, height, lensCenterOffsetX, lensCenterOffsetY, lensType);
-      old_lensCenterOffsetX = lensCenterOffsetX;
-      old_lensCenterOffsetY = lensCenterOffsetY;
-      old_lensType = lensType;
+    if(lidarParam.old_lensCenterOffsetX != lidarParam.lensCenterOffsetX || lidarParam.old_lensCenterOffsetY != lidarParam.lensCenterOffsetY || lidarParam.old_lensType != lidarParam.lensType){
+      cartesianTransform.initLensTransform(sensorPixelSizeMM, width, height, lidarParam.lensCenterOffsetX, lidarParam.lensCenterOffsetY, lidarParam.lensType);
+      lidarParam.old_lensCenterOffsetX = lidarParam.lensCenterOffsetX;
+      lidarParam.old_lensCenterOffsetY = lidarParam.lensCenterOffsetY;
+      lidarParam.old_lensType = lidarParam.lensType;
 
     }
     //startStream = true;
@@ -241,74 +181,78 @@ public:
     startStreaming();
   }
 
-  void initialise()
+  void roboscanPublisher::initialise()
   {
     printf("Init roboscan_nsl3130 node\n");
 
     interface.stopStream();
     
-    lensType = 2;
-    lensCenterOffsetX = 0;
-    lensCenterOffsetY = 0;
-    startStream = false;
-    imageType = 4; 
-    hdr_mode = 0; //0 - hdr off, 1 - hdr spatial, 2 - hdr temporal
-    int0 = 800;
-    int1 = 100;
-    int2 = 50;
-    intGr = 100; //integration times
-    frequencyModulation = 1;
-    modIndex = 0;
-    channel = 0;
-    minAmplitude = 100;
-    medianFilter = false;
-    averageFilter = false;
-    temporalFilterFactor = 0;
-    temporalFilterThreshold = 0;
-    edgeThreshold = 0;
-    temporalEdgeThresholdLow = 0;
-    temporalEdgeThresholdHigh = 0;
-    interferenceDetectionLimit = 0;
-    useLastValue = false;
-    cartesian = true;
-    publishPointCloud = true;
+    lidarParam.lensType = 2;
+    lidarParam.lensCenterOffsetX = 0;
+    lidarParam.lensCenterOffsetY = 0;
+    lidarParam.startStream = false;
+    lidarParam.imageType = 4; 
+    lidarParam.hdr_mode = 0; //0 - hdr off, 1 - hdr spatial, 2 - hdr temporal
+    lidarParam.int0 = 800;
+    lidarParam.int1 = 100;
+    lidarParam.int2 = 50;
+    lidarParam.intGr = 100; //integration times
+    lidarParam.frequencyModulation = 1;
+    lidarParam.modIndex = 0;
+    lidarParam.channel = 0;
+    lidarParam.minAmplitude = 100;
+    lidarParam.medianFilter = false;
+    lidarParam.averageFilter = false;
+    lidarParam.temporalFilterFactor = 0;
+    lidarParam.temporalFilterThreshold = 0;
+    lidarParam.edgeThreshold = 0;
+    lidarParam.temporalEdgeThresholdLow = 0;
+    lidarParam.temporalEdgeThresholdHigh = 0;
+    lidarParam.interferenceDetectionLimit = 0;
+    lidarParam.useLastValue = false;
+    lidarParam.cartesian = true;
+    lidarParam.publishPointCloud = true;
     
-    roi_leftX = 0;
-    roi_topY = 0;
-    roi_rightX = 319;
-    roi_bottomY = 239;
+    lidarParam.roi_leftX = 0;
+    lidarParam.roi_topY = 0;
+    lidarParam.roi_rightX = 319;
+    lidarParam.roi_bottomY = 239;
+
+    lidarParam.cvShow = false;
     //roi_height
 
 
-    rclcpp::Parameter pLensType("lensType", lensType);
-    rclcpp::Parameter pImageType("imageType", imageType);
-    rclcpp::Parameter pHdr_mode("hdr_mode", hdr_mode);
-    rclcpp::Parameter pInt0("int0", int0);
-    rclcpp::Parameter pInt1("int1", int1);
-    rclcpp::Parameter pInt2("int2", int2);
-    rclcpp::Parameter pIntGr("intGr", intGr);
-    rclcpp::Parameter pMinAmplitude("minAmplitude", minAmplitude);
-    rclcpp::Parameter pModIndex("modIndex", modIndex);
-    rclcpp::Parameter pChannel("channel", channel);
-    rclcpp::Parameter pRoi_leftX("roi_leftX", roi_leftX);
-    rclcpp::Parameter pRoi_topY("roi_topY", roi_topY);
-    rclcpp::Parameter pRoi_rightX("roi_rightX", roi_rightX);
-    rclcpp::Parameter pRoi_bottomY("roi_bottomY", roi_bottomY);
+    rclcpp::Parameter pLensType("B. lensType", lidarParam.lensType);
+    rclcpp::Parameter pImageType("C. imageType", lidarParam.imageType);
+    rclcpp::Parameter pHdr_mode("D. hdr_mode", lidarParam.hdr_mode);
+    rclcpp::Parameter pInt0("E. int0", lidarParam.int0);
+    rclcpp::Parameter pInt1("F. int1", lidarParam.int1);
+    rclcpp::Parameter pInt2("G. int2", lidarParam.int2);
+    rclcpp::Parameter pIntGr("H. intGr", lidarParam.intGr);
+    rclcpp::Parameter pMinAmplitude("I. minAmplitude", lidarParam.minAmplitude);
+    rclcpp::Parameter pModIndex("J. modIndex", lidarParam.modIndex);
+    rclcpp::Parameter pChannel("K. channel", lidarParam.channel);
+    rclcpp::Parameter pRoi_leftX("L. roi_leftX", lidarParam.roi_leftX);
+    rclcpp::Parameter pRoi_topY("M. roi_topY", lidarParam.roi_topY);
+    rclcpp::Parameter pRoi_rightX("N. roi_rightX", lidarParam.roi_rightX);
+    rclcpp::Parameter pRoi_bottomY("O. roi_bottomY", lidarParam.roi_bottomY);
+    rclcpp::Parameter pCvShow("A. cvShow", lidarParam.cvShow);
 
-    this->declare_parameter<int>("lensType", lensType);
-    this->declare_parameter<int>("imageType", imageType);
-    this->declare_parameter<int>("hdr_mode", hdr_mode);
-    this->declare_parameter<int>("int0", int0);
-    this->declare_parameter<int>("int1", int1);
-    this->declare_parameter<int>("int2", int2);
-    this->declare_parameter<int>("intGr", intGr);
-    this->declare_parameter<int>("minAmplitude", minAmplitude);
-    this->declare_parameter<int>("modIndex", modIndex);
-    this->declare_parameter<int>("channel", channel);
-    this->declare_parameter<int>("roi_leftX", roi_leftX);
-    this->declare_parameter<int>("roi_topY", roi_topY);
-    this->declare_parameter<int>("roi_rightX", roi_rightX);
-    this->declare_parameter<int>("roi_bottomY", roi_bottomY);
+    this->declare_parameter<int>("B. lensType", lidarParam.lensType);
+    this->declare_parameter<int>("C. imageType", lidarParam.imageType);
+    this->declare_parameter<int>("D. hdr_mode", lidarParam.hdr_mode);
+    this->declare_parameter<int>("E. int0", lidarParam.int0);
+    this->declare_parameter<int>("F. int1", lidarParam.int1);
+    this->declare_parameter<int>("G. int2", lidarParam.int2);
+    this->declare_parameter<int>("H. intGr",lidarParam.intGr);
+    this->declare_parameter<int>("I. minAmplitude", lidarParam.minAmplitude);
+    this->declare_parameter<int>("J. modIndex", lidarParam.modIndex);
+    this->declare_parameter<int>("K. channel", lidarParam.channel);
+    this->declare_parameter<int>("L. roi_leftX", lidarParam.roi_leftX);
+    this->declare_parameter<int>("M. roi_topY", lidarParam.roi_topY);
+    this->declare_parameter<int>("N. roi_rightX", lidarParam.roi_rightX);
+    this->declare_parameter<int>("O. roi_bottomY", lidarParam.roi_bottomY);
+    this->declare_parameter<bool>("A. cvShow", lidarParam.cvShow);
     
     this->set_parameter(pLensType);
     this->set_parameter(pImageType);
@@ -324,58 +268,60 @@ public:
     this->set_parameter(pRoi_topY);
     this->set_parameter(pRoi_rightX);
     this->set_parameter(pRoi_bottomY);
+    this->set_parameter(pCvShow);
 
     //std::shared_ptr<rclcpp::Node> node = rclcpp::Node::make_shared("cameraSub");
     //cameraInfoService = node->create_service<sensor_msgs::srv::SetCameraInfo>("cameraSub", &setCameraInfo);
     connectionCameraInfo = interface.subscribeCameraInfo([&](std::shared_ptr<CameraInfo> ci) -> void { updateCameraInfo(ci); });
     connectionFrames = interface.subscribeFrame([&](std::shared_ptr<Frame> f) -> void {  updateFrame(f); });
-    cartesianTransform.initLensTransform(sensorPixelSizeMM, width, height, lensCenterOffsetX, lensCenterOffsetY, lensType); //0.02 mm - sensor pixel size
+    cartesianTransform.initLensTransform(sensorPixelSizeMM, width, height, lidarParam.lensCenterOffsetX, lidarParam.lensCenterOffsetY, lidarParam.lensType); //0.02 mm - sensor pixel size
 
   }
 
 
-  void setParameters()
+  void roboscanPublisher::setParameters()
   {
  
     printf("setParameters\n");
     interface.stopStream();
 
-    interface.setMinAmplitude(minAmplitude);
-    interface.setIntegrationTime(int0, int1, int2, intGr, grayscaleIlluminationMode);
+    interface.setMinAmplitude(lidarParam.minAmplitude);
+    interface.setIntegrationTime(lidarParam.int0, lidarParam.int1, lidarParam.int2, lidarParam.intGr, lidarParam.grayscaleIlluminationMode);
         
-    interface.setHDRMode((uint8_t)hdr_mode);
-    interface.setFilter(medianFilter, averageFilter, static_cast<uint16_t>(temporalFilterFactor * 1000), temporalFilterThreshold, edgeThreshold,
-                        temporalEdgeThresholdLow, temporalEdgeThresholdHigh, interferenceDetectionLimit, useLastValue);
+    interface.setHDRMode((uint8_t)lidarParam.hdr_mode);
+    interface.setFilter(lidarParam.medianFilter, lidarParam.averageFilter, static_cast<uint16_t>(lidarParam.temporalFilterFactor * 1000), lidarParam.temporalFilterThreshold, lidarParam.edgeThreshold,
+                        lidarParam.temporalEdgeThresholdLow, lidarParam.temporalEdgeThresholdHigh, lidarParam.interferenceDetectionLimit, lidarParam.useLastValue);
 
-    interface.setAdcOverflowSaturation(bAdcOverflow, bSaturation);
-    interface.setGrayscaleIlluminationMode(grayscaleIlluminationMode);
+    interface.setAdcOverflowSaturation(lidarParam.bAdcOverflow, lidarParam.bSaturation);
+    interface.setGrayscaleIlluminationMode(lidarParam.grayscaleIlluminationMode);
    
     
-    if(frequencyModulation == 0) modIndex = 1;
-    else if(frequencyModulation == 1)  modIndex = 0;
-    else    modIndex = frequencyModulation;
+    if(lidarParam.frequencyModulation == 0) lidarParam.modIndex = 1;
+    else if(lidarParam.frequencyModulation == 1)  lidarParam.modIndex = 0;
+    else    lidarParam.modIndex = lidarParam.frequencyModulation;
 
-    interface.setModulation(modIndex, channel);
-    printf("modIndex = %d\n", modIndex);
-    interface.setRoi(roi_leftX, roi_topY, roi_rightX, roi_bottomY);
+    interface.setModulation(lidarParam.modIndex, lidarParam.channel);
+    printf("modIndex = %d\n", lidarParam.modIndex);
+    interface.setRoi(lidarParam.roi_leftX, lidarParam.roi_topY, lidarParam.roi_rightX, lidarParam.roi_bottomY);
 
 
-    if(old_lensCenterOffsetX != lensCenterOffsetX || old_lensCenterOffsetY != lensCenterOffsetY || old_lensType != lensType){
-      cartesianTransform.initLensTransform(sensorPixelSizeMM, width, height, lensCenterOffsetX, lensCenterOffsetY, lensType);
-      old_lensCenterOffsetX = lensCenterOffsetX;
-      old_lensCenterOffsetY = lensCenterOffsetY;
-      old_lensType = lensType;
+    if(lidarParam.old_lensCenterOffsetX != lidarParam.lensCenterOffsetX || lidarParam.old_lensCenterOffsetY != lidarParam.lensCenterOffsetY || lidarParam.old_lensType != lidarParam.lensType){
+      cartesianTransform.initLensTransform(sensorPixelSizeMM, width, height, lidarParam.lensCenterOffsetX, lidarParam.lensCenterOffsetY, lidarParam.lensType);
+      lidarParam.old_lensCenterOffsetX = lidarParam.lensCenterOffsetX;
+      lidarParam.old_lensCenterOffsetY = lidarParam.lensCenterOffsetY;
+      lidarParam.old_lensType = lidarParam.lensType;
     }
+    lidarParam.cvShow = false;
     printf("setParameters OK\n");
 
   }
 
 
-  void startStreaming()
+  void roboscanPublisher::startStreaming()
   {
     printf("startStream\n");
     //startStream = true;
-    switch(imageType) {
+    switch(lidarParam.imageType) {
     case Frame::GRAYSCALE:
       interface.streamGrayscale();
       printf("streaming grayscale\n");
@@ -405,9 +351,27 @@ public:
       break;
     }
   }
-  int Convert_To_RGB24( float fValue, RGB888Pixel *nRGBData, float fMinValue, float fMaxValue)
+  int roboscanPublisher::Convert_To_RGB24( float fValue, RGB888Pixel *nRGBData, float fMinValue, float fMaxValue)
   {
-    if(fValue == 0) //Invalide Pixel
+    if(fValue == ADC_OVERFLOW)
+    {
+      nRGBData->r = 169;//R
+      nRGBData->g = 14;//G
+      nRGBData->b = 255;//B
+    }
+    else if(fValue == SATURATION)
+    {
+      nRGBData->r = 255;//R
+      nRGBData->g = 0;//G
+      nRGBData->b = 128;//B
+    }
+    else if(fValue == INTERFERENCE)
+    {
+      nRGBData->r = 0;//R
+      nRGBData->g = 0;//G
+      nRGBData->b = 0;//B
+    }
+    else if(fValue == 0) //Invalide Pixel
     {
       nRGBData->r = 0;//R
       nRGBData->g = 0;//G
@@ -471,7 +435,7 @@ public:
     return true;
   }
 
-  void getGrayscaleColor(cv::Mat &imageLidar, int x, int y, int value, double end_range )
+  void roboscanPublisher::getGrayscaleColor(cv::Mat &imageLidar, int x, int y, int value, double end_range )
   {   
     if (value == SATURATION)
     {
@@ -510,7 +474,7 @@ public:
 }
 
 
-  bool setCameraInfo(sensor_msgs::srv::SetCameraInfo::Request& req, sensor_msgs::srv::SetCameraInfo::Response& res)
+  bool roboscanPublisher::setCameraInfo(sensor_msgs::srv::SetCameraInfo::Request& req, sensor_msgs::srv::SetCameraInfo::Response& res)
   {
     req.camera_info.width  = cameraInfo.width;
     req.camera_info.height = cameraInfo.height;
@@ -523,7 +487,7 @@ public:
     return true;
   }
  
-  void updateCameraInfo(std::shared_ptr<CameraInfo> ci)
+  void roboscanPublisher::updateCameraInfo(std::shared_ptr<CameraInfo> ci)
   {
     cameraInfo.width = ci->width;
     cameraInfo.height = ci->height;
@@ -534,18 +498,18 @@ public:
   }
 
 
-void updateFrame(std::shared_ptr<Frame> frame)
+  void roboscanPublisher::updateFrame(std::shared_ptr<Frame> frame)
   {
     int x, y, k, l;
-    auto qos_profile = rclcpp::QoS(rclcpp::KeepLast(10));
+    static rclcpp::Clock s_rclcpp_clock;
     auto data_stamp = s_rclcpp_clock.now();
+
     cv::Mat imageLidar(height, width, CV_8UC3, Scalar(255, 255, 255));
 
     if(frame->dataType == Frame::DISTANCE || frame->dataType == Frame::AMPLITUDE || frame->dataType == Frame::DISTANCE_AND_GRAYSCALE || frame->dataType == Frame::DISTANCE_AMPLITUDE_GRAYSCALE ){
       sensor_msgs::msg::Image imgDistance;
-      imgDistancePub = this->create_publisher<sensor_msgs::msg::Image>("roboscanDistance", qos_profile); 
         
-      imgDistance.header.stamp = s_rclcpp_clock.now();
+      imgDistance.header.stamp = data_stamp;
       imgDistance.header.frame_id = "roboscan_frame";
       imgDistance.height = static_cast<uint32_t>(frame->height);
       imgDistance.width = static_cast<uint32_t>(frame->width);
@@ -558,9 +522,8 @@ void updateFrame(std::shared_ptr<Frame> frame)
 
     if(frame->dataType == Frame::AMPLITUDE || frame->dataType == Frame::DISTANCE_AND_GRAYSCALE || frame->dataType == Frame::DISTANCE_AMPLITUDE_GRAYSCALE){
       sensor_msgs::msg::Image imgAmpl;
-      imgAmplPub = this->create_publisher<sensor_msgs::msg::Image>("roboscanAmpl", qos_profile); 
         
-      imgAmpl.header.stamp = s_rclcpp_clock.now();
+      imgAmpl.header.stamp = data_stamp;
       imgAmpl.header.frame_id = "roboscan_frame";
       imgAmpl.height = static_cast<uint32_t>(frame->height);
       imgAmpl.width = static_cast<uint32_t>(frame->width);
@@ -573,9 +536,9 @@ void updateFrame(std::shared_ptr<Frame> frame)
     
     if(frame->dataType == Frame::DISTANCE_AMPLITUDE_GRAYSCALE){
       sensor_msgs::msg::Image imgGray;
-      imgGrayPub = this->create_publisher<sensor_msgs::msg::Image>("roboscanGray", qos_profile); 
+      
         
-      imgGray.header.stamp = s_rclcpp_clock.now();
+      imgGray.header.stamp = data_stamp;
       imgGray.header.frame_id = "roboscan_frame";
       imgGray.height = static_cast<uint32_t>(frame->height);
       imgGray.width = static_cast<uint32_t>(frame->width);
@@ -588,9 +551,8 @@ void updateFrame(std::shared_ptr<Frame> frame)
 
     if(frame->dataType == Frame::DCS){
       sensor_msgs::msg::Image imgDCS;
-      imgDCSPub = this->create_publisher<sensor_msgs::msg::Image>("roboscanDCS", qos_profile); 
         
-      imgDCS.header.stamp = s_rclcpp_clock.now();
+      imgDCS.header.stamp = data_stamp;
       imgDCS.header.frame_id = "roboscan_frame";
       imgDCS.height = static_cast<uint32_t>(frame->height) * 4;
       imgDCS.width = static_cast<uint32_t>(frame->width);
@@ -615,12 +577,11 @@ void updateFrame(std::shared_ptr<Frame> frame)
 
     if(frame->dataType != Frame::GRAYSCALE){
         
-      pointcloudPub = this->create_publisher<sensor_msgs::msg::PointCloud2>("roboscanPointCloud", qos_profile); 
 
       const size_t nPixel = frame->width * frame->height;
       pcl::PointCloud<pcl::PointXYZI>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZI>());
       cloud->header.frame_id = "roboscan_frame";
-      cloud->header.stamp = pcl_conversions::toPCL(s_rclcpp_clock.now());
+      cloud->header.stamp = pcl_conversions::toPCL(data_stamp);
       cloud->width = static_cast<uint32_t>(frame->width);
       cloud->height = static_cast<uint32_t>(frame->height);
       cloud->is_dense = false;
@@ -628,7 +589,6 @@ void updateFrame(std::shared_ptr<Frame> frame)
 
       uint16_t distance = 0;
       uint16_t amplitude = 0;
-      
       double px, py, pz;
 
       RGB888Pixel* pTex1 = new RGB888Pixel[1];
@@ -664,7 +624,7 @@ void updateFrame(std::shared_ptr<Frame> frame)
 #endif
             if (distance > 0 && distance < 65000){
 
-              if(cartesian){
+              if(lidarParam.cartesian){
                 cartesianTransform.transformPixel(x, y, distance, px, py, pz);
                   p.x = static_cast<float>(pz / 1000.0); //mm -> m
                   p.y = static_cast<float>(px / 1000.0);
@@ -673,20 +633,23 @@ void updateFrame(std::shared_ptr<Frame> frame)
                   if(frame->dataType == Frame::AMPLITUDE) p.intensity = static_cast<float>(amplitude);
                   else p.intensity = static_cast<float>(pz / 1000.0);
 
+                   
                   }else{
                     p.x = distance / 1000.0;
-                    p.y = x / 100.0;
-                    p.z = -y / 1000.0;
+                    p.y = -(160-x) / 100.0;
+                    p.z = (120-y) / 100.0;
                     if(frame->dataType == Frame::AMPLITUDE) p.intensity =  static_cast<float>(amplitude);
                     else p.intensity = static_cast<float>(distance / 1000.0);
                   }
                 
-                }else{
-                  p.x = std::numeric_limits<float>::quiet_NaN();
-                  p.y = std::numeric_limits<float>::quiet_NaN();
-                  p.z = std::numeric_limits<float>::quiet_NaN();
-                }         
-            }
+              }else{
+                p.x = std::numeric_limits<float>::quiet_NaN();
+                p.y = std::numeric_limits<float>::quiet_NaN();
+                p.z = std::numeric_limits<float>::quiet_NaN();
+            }         
+
+          }
+
         }
         sensor_msgs::msg::PointCloud2 msg;
         pcl::toROSMsg(*cloud, msg);
@@ -700,14 +663,15 @@ void updateFrame(std::shared_ptr<Frame> frame)
 
       }
 
-      imshow("NSL-31310AA IMAGE", imageLidar);
+      if(lidarParam.cvShow == true)
+      {
+        imshow("NSL-31310AA IMAGE", imageLidar);
+      }
+      else cv::destroyAllWindows();
+
       waitKey(1);
   }
 
-
-private:
-    OnSetParametersCallbackHandle::SharedPtr callback_handle_;
-};
 
 
 int main(int argc, char ** argv)
