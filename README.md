@@ -32,9 +32,12 @@ $ rqt
  (reconfigure)
 ```
 
-![Screenshot from 2023-02-13 18-46-31](https://user-images.githubusercontent.com/106071093/218613496-e878af97-b103-4368-9c86-56e3085642bc.png)
+![Screenshot from 2023-02-22 13-00-21 (copy)](https://user-images.githubusercontent.com/106071093/220520356-3d16736f-902c-4d9e-858d-a6ed8ddf87aa.png)
+
 
 ```
+
+cvShow : Image Viewer on/off
 channel : 0 ~ 15
 
 hdr_mode 0 : HDR off
