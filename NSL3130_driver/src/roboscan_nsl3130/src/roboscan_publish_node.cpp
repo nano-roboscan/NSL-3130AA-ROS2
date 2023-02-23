@@ -631,7 +631,7 @@ roboscanPublisher::~roboscanPublisher()
                   RCLCPP_INFO(this->get_logger(), "distance : %d", distance);
                 }
 #endif
-            if (distance > 0 && distance < 65000){
+            if (distance > 0 && distance < 64000){
 
               if(lidarParam.cartesian){
                 cartesianTransform.transformPixel(x, y, distance, px, py, pz, lidarParam.transformAngle);
