@@ -122,6 +122,10 @@ roboscanPublisher::~roboscanPublisher()
       {
         lidarParam.roi_bottomY = param.as_int();
       }
+      else if (param.get_name() == "P. transformAngle")
+      {
+        lidarParam.transformAngle = param.as_double();
+      }
       else if (param.get_name() == "A. cvShow")
       {
         lidarParam.cvShow = param.as_bool();
@@ -175,8 +179,9 @@ roboscanPublisher::~roboscanPublisher()
       lidarParam.old_lensType = lidarParam.lensType;
 
     }
+
     //startStream = true;
-    printf("setReconfigure OK\n\n");
+    printf("setReconfigure OK!\n\n");
     waitKey(1);
     startStreaming();
   }
@@ -217,6 +222,7 @@ roboscanPublisher::~roboscanPublisher()
     lidarParam.roi_topY = 0;
     lidarParam.roi_rightX = 319;
     lidarParam.roi_bottomY = 239;
+    lidarParam.transformAngle = 0;
 
     lidarParam.cvShow = false;
     //roi_height
@@ -236,6 +242,7 @@ roboscanPublisher::~roboscanPublisher()
     rclcpp::Parameter pRoi_topY("M. roi_topY", lidarParam.roi_topY);
     rclcpp::Parameter pRoi_rightX("N. roi_rightX", lidarParam.roi_rightX);
     rclcpp::Parameter pRoi_bottomY("O. roi_bottomY", lidarParam.roi_bottomY);
+    rclcpp::Parameter pTransformAngle("P. transformAngle", lidarParam.transformAngle);
     rclcpp::Parameter pCvShow("A. cvShow", lidarParam.cvShow);
 
     this->declare_parameter<int>("B. lensType", lidarParam.lensType);
@@ -252,6 +259,7 @@ roboscanPublisher::~roboscanPublisher()
     this->declare_parameter<int>("M. roi_topY", lidarParam.roi_topY);
     this->declare_parameter<int>("N. roi_rightX", lidarParam.roi_rightX);
     this->declare_parameter<int>("O. roi_bottomY", lidarParam.roi_bottomY);
+    this->declare_parameter<double>("P. transformAngle", lidarParam.transformAngle);
     this->declare_parameter<bool>("A. cvShow", lidarParam.cvShow);
     
     this->set_parameter(pLensType);
@@ -268,6 +276,7 @@ roboscanPublisher::~roboscanPublisher()
     this->set_parameter(pRoi_topY);
     this->set_parameter(pRoi_rightX);
     this->set_parameter(pRoi_bottomY);
+    this->set_parameter(pTransformAngle);
     this->set_parameter(pCvShow);
 
     //std::shared_ptr<rclcpp::Node> node = rclcpp::Node::make_shared("cameraSub");
@@ -625,7 +634,7 @@ roboscanPublisher::~roboscanPublisher()
             if (distance > 0 && distance < 65000){
 
               if(lidarParam.cartesian){
-                cartesianTransform.transformPixel(x, y, distance, px, py, pz);
+                cartesianTransform.transformPixel(x, y, distance, px, py, pz, lidarParam.transformAngle);
                   p.x = static_cast<float>(pz / 1000.0); //mm -> m
                   p.y = static_cast<float>(px / 1000.0);
                   p.z = static_cast<float>(-py / 1000.0);
@@ -649,8 +658,8 @@ roboscanPublisher::~roboscanPublisher()
             }         
 
           }
-
         }
+
         sensor_msgs::msg::PointCloud2 msg;
         pcl::toROSMsg(*cloud, msg);
         msg.header.stamp = data_stamp;

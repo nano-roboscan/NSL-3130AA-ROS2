@@ -482,11 +482,29 @@ void CartesianTransform::initLensTransform(double sensorPointSizeMM, int width, 
 
 
 // function for cartesian transfrmation
-void CartesianTransform::transformPixel(uint srcX, uint srcY, double srcZ, double &destX, double &destY, double &destZ)
+void CartesianTransform::transformPixel(uint srcX, uint srcY, double srcZ, double &destX, double &destY, double &destZ, double &transformAngle)
 {
+    if(fixAngle != transformAngle)
+    {
+        fixAngle = transformAngle;
+        angleR = fixAngle * 3.1415926 / 180.0;
+        sin_angle = sin(angleR);
+        cos_angle = cos(angleR);   
+    }
+    if(fixAngle == 0)
+    {
+        sin_angle = 0;
+        cos_angle = 1;
+    }
+    
+
+    double y = srcZ *yUA[srcX][srcY];
+    double z = srcZ *zUA[srcX][srcY];
+
     destX = srcZ * xUA[srcX][srcY];
-    destY = srcZ * yUA[srcX][srcY];
-    destZ = srcZ * zUA[srcX][srcY];
+    destY = z * sin_angle + y * cos_angle;//srcZ * yUA[srcX][srcY];
+    destZ = z * cos_angle - y * sin_angle;//srcZ * zUA[srcX][srcY];
+
 }
 
 

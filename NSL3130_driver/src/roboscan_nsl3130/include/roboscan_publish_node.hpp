@@ -61,6 +61,7 @@ namespace nanosys {
 		uint8_t grayscaleIlluminationMode = 0;
 		uint8_t bAdcOverflow = 1;
 		uint8_t bSaturation = 1;
+		double transformAngle;
 
 		uint32_t frameSeq;
 		bool cvShow;

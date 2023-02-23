@@ -16,15 +16,21 @@ public:
 
     CartesianTransform();
     ~CartesianTransform();    
-    void transformPixel(uint srcX, uint srcY, double srcZ, double &destX, double &destY, double &destZ);
+    void transformPixel(uint srcX, uint srcY, double srcZ, double &destX, double &destY, double &destZ, double &transformAngle);
     void initLensTransform(double sensorPointSizeMM, int width, int height, int offsetX, int offsetY, int lensType);
 
 
 private:
 
+    double fixAngle;
+    double angleR;
+    double sin_angle;
+    double cos_angle;   
+
     int distortionTableSize;
     int numCols;
     int numRows;
+
     double angle[101];
     double rp[101];
     double xUA[320][240];
