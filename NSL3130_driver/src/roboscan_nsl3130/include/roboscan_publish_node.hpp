@@ -62,6 +62,7 @@ namespace nanosys {
 		uint8_t bAdcOverflow = 1;
 		uint8_t bSaturation = 1;
 		double transformAngle;
+		uint8_t cutPixels;
 
 		uint32_t frameSeq;
 		bool cvShow;

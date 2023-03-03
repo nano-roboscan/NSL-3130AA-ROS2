@@ -126,6 +126,10 @@ roboscanPublisher::~roboscanPublisher()
       {
         lidarParam.transformAngle = param.as_double();
       }
+      else if (param.get_name() == "Q. cutPixels")
+      {
+        lidarParam.cutPixels = param.as_int();
+      }
       else if (param.get_name() == "A. cvShow")
       {
         lidarParam.cvShow = param.as_bool();
@@ -223,6 +227,7 @@ roboscanPublisher::~roboscanPublisher()
     lidarParam.roi_rightX = 319;
     lidarParam.roi_bottomY = 239;
     lidarParam.transformAngle = 0;
+    lidarParam.cutPixels = 0;
 
     lidarParam.cvShow = false;
     //roi_height
@@ -243,6 +248,7 @@ roboscanPublisher::~roboscanPublisher()
     rclcpp::Parameter pRoi_rightX("N. roi_rightX", lidarParam.roi_rightX);
     rclcpp::Parameter pRoi_bottomY("O. roi_bottomY", lidarParam.roi_bottomY);
     rclcpp::Parameter pTransformAngle("P. transformAngle", lidarParam.transformAngle);
+    rclcpp::Parameter pCutpixels("Q. cutPixels", lidarParam.cutPixels);
     rclcpp::Parameter pCvShow("A. cvShow", lidarParam.cvShow);
 
     this->declare_parameter<int>("B. lensType", lidarParam.lensType);
@@ -260,6 +266,7 @@ roboscanPublisher::~roboscanPublisher()
     this->declare_parameter<int>("N. roi_rightX", lidarParam.roi_rightX);
     this->declare_parameter<int>("O. roi_bottomY", lidarParam.roi_bottomY);
     this->declare_parameter<double>("P. transformAngle", lidarParam.transformAngle);
+    this->declare_parameter<int>("Q. cutPixels", lidarParam.transformAngle);
     this->declare_parameter<bool>("A. cvShow", lidarParam.cvShow);
     
     this->set_parameter(pLensType);
@@ -277,6 +284,7 @@ roboscanPublisher::~roboscanPublisher()
     this->set_parameter(pRoi_rightX);
     this->set_parameter(pRoi_bottomY);
     this->set_parameter(pTransformAngle);
+    this->set_parameter(pCutpixels);
     this->set_parameter(pCvShow);
 
     //std::shared_ptr<rclcpp::Node> node = rclcpp::Node::make_shared("cameraSub");
@@ -603,62 +611,86 @@ roboscanPublisher::~roboscanPublisher()
       RGB888Pixel* pTex1 = new RGB888Pixel[1];
         
 
-      for(k=0, l=0, y=0; y< frame->height; y++){
-          for(x=0; x< frame->width; x++, k++, l+=2){
-            pcl::PointXYZI &p = cloud->points[k];
-            if(frame->dataType == Frame::DISTANCE || frame->dataType == Frame::AMPLITUDE || frame->dataType == Frame::DISTANCE_AND_GRAYSCALE || frame->dataType == Frame::DISTANCE_AMPLITUDE_GRAYSCALE)
-              distance = (frame->distData[l+1] << 8) + frame->distData[l];
+      for(k=0, l=0, y=0; y< frame->height; y++)
+      {
+        for(x=0; x< frame->width; x++, k++, l+=2)
+        {
 
-            if(frame->dataType == Frame::DCS)
-              distance = (frame->dcsData[l+1] << 8) + frame->dcsData[l];
+          pcl::PointXYZI &p = cloud->points[k];
+          if(frame->dataType == Frame::DISTANCE || frame->dataType == Frame::AMPLITUDE || frame->dataType == Frame::DISTANCE_AND_GRAYSCALE || frame->dataType == Frame::DISTANCE_AMPLITUDE_GRAYSCALE)
+            distance = (frame->distData[l+1] << 8) + frame->distData[l];
 
-            if(frame->dataType == Frame::AMPLITUDE)
-              amplitude = (frame->amplData[l+1] << 8)  + frame->amplData[l];
+          if(frame->dataType == Frame::DCS)
+            distance = (frame->dcsData[l+1] << 8) + frame->dcsData[l];
+
+          if(frame->dataType == Frame::AMPLITUDE)
+            amplitude = (frame->amplData[l+1] << 8)  + frame->amplData[l];
 
             
-            //distance 
-            if(distance == LOW_AMPLITUDE)
-              distance = 0;
+          //distance 
+          if(distance == LOW_AMPLITUDE)
+            distance = 0;
             
 
-            Convert_To_RGB24((double)distance, pTex1, 0.0f, 12500.0f);
+          Convert_To_RGB24((double)distance, pTex1, 0.0f, 12500.0f);
+          if(y > -x + lidarParam.cutPixels
+            && y > x - (319-lidarParam.cutPixels)
+            && y < x + (239-lidarParam.cutPixels)
+            && y < -x + lidarParam.cutPixels + (239-lidarParam.cutPixels) + (319-lidarParam.cutPixels))
+          {
             imageLidar.at<Vec3b>(y, x)[0] = pTex1->b;
             imageLidar.at<Vec3b>(y, x)[1] = pTex1->g;
             imageLidar.at<Vec3b>(y, x)[2] = pTex1->r;
+          }
+          else
+          {
+            imageLidar.at<Vec3b>(y, x)[0] = 0;
+            imageLidar.at<Vec3b>(y, x)[1] = 0;
+            imageLidar.at<Vec3b>(y, x)[2] = 0;
+          }
 #if 0                
-                if(x == 160 && y == 120)
-                {
-                  RCLCPP_INFO(this->get_logger(), "distance : %d", distance);
-                }
+          if(x == 160 && y == 120)
+          {
+            RCLCPP_INFO(this->get_logger(), "distance : %d", distance);
+          }
 #endif
-            if (distance > 0 && distance < 64000){
+          if (distance > 0 && distance < 64000
+            && y > -x + lidarParam.cutPixels
+            && y > x - (319-lidarParam.cutPixels)
+            && y < x + (239-lidarParam.cutPixels)
+            && y < -x + lidarParam.cutPixels + (239-lidarParam.cutPixels) + (319-lidarParam.cutPixels))
+          {
+            
+            if(lidarParam.cartesian)
+            {  
+              cartesianTransform.transformPixel(x, y, distance, px, py, pz, lidarParam.transformAngle);
+              p.x = static_cast<float>(pz / 1000.0); //mm -> m
+              p.y = static_cast<float>(px / 1000.0);
+              p.z = static_cast<float>(-py / 1000.0);
 
-              if(lidarParam.cartesian){
-                cartesianTransform.transformPixel(x, y, distance, px, py, pz, lidarParam.transformAngle);
-                  p.x = static_cast<float>(pz / 1000.0); //mm -> m
-                  p.y = static_cast<float>(px / 1000.0);
-                  p.z = static_cast<float>(-py / 1000.0);
-
-                  if(frame->dataType == Frame::AMPLITUDE) p.intensity = static_cast<float>(amplitude);
-                  else p.intensity = static_cast<float>(pz / 1000.0);
+              if(frame->dataType == Frame::AMPLITUDE) p.intensity = static_cast<float>(amplitude);
+              else p.intensity = static_cast<float>(pz / 1000.0);
 
                    
-                  }else{
-                    p.x = distance / 1000.0;
-                    p.y = -(160-x) / 100.0;
-                    p.z = (120-y) / 100.0;
-                    if(frame->dataType == Frame::AMPLITUDE) p.intensity =  static_cast<float>(amplitude);
-                    else p.intensity = static_cast<float>(distance / 1000.0);
-                  }
-                
-              }else{
-                p.x = std::numeric_limits<float>::quiet_NaN();
-                p.y = std::numeric_limits<float>::quiet_NaN();
-                p.z = std::numeric_limits<float>::quiet_NaN();
-            }         
-
+            }
+            else
+            {
+              p.x = distance / 1000.0;
+              p.y = -(160-x) / 100.0;
+              p.z = (120-y) / 100.0;
+              if(frame->dataType == Frame::AMPLITUDE) p.intensity =  static_cast<float>(amplitude);
+              else p.intensity = static_cast<float>(distance / 1000.0);
+            } 
           }
+          else
+          {
+            p.x = std::numeric_limits<float>::quiet_NaN();
+            p.y = std::numeric_limits<float>::quiet_NaN();
+            p.z = std::numeric_limits<float>::quiet_NaN();
+          }         
+
         }
+      }
 
         sensor_msgs::msg::PointCloud2 msg;
         pcl::toROSMsg(*cloud, msg);
