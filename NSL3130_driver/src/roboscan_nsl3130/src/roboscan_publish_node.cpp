@@ -100,7 +100,7 @@ roboscanPublisher::~roboscanPublisher()
       }
       else if (param.get_name() == "J. modIndex")
       {
-        lidarParam.modIndex = param.as_int();
+        lidarParam.frequencyModulation = param.as_int();
       }
       else if (param.get_name() == "K. channel")
       {
@@ -130,6 +130,48 @@ roboscanPublisher::~roboscanPublisher()
       {
         lidarParam.cutPixels = param.as_int();
       }
+      else if (param.get_name() == "Q. cutPixels")
+      {
+        lidarParam.cutPixels = param.as_int();
+      }
+      else if (param.get_name() == "R. medianFilter")
+      {
+        lidarParam.medianFilter = param.as_bool();
+      }
+      else if (param.get_name() == "S. averageFilter")
+      {
+        lidarParam.averageFilter = param.as_bool();
+      }
+      else if (param.get_name() == "T. temporalFilterFactor")
+      {
+        lidarParam.temporalFilterFactor = param.as_double();
+      }
+      else if (param.get_name() == "T. temporalFilterFactorThreshold")
+      {
+        lidarParam.temporalFilterThreshold = param.as_int();
+      }
+      else if (param.get_name() == "U. edgeFilterThreshold")
+      {
+        lidarParam.edgeFilterThreshold = param.as_int();
+      }
+      /*
+      else if (param.get_name() == "W. temporalEdgeThresholdLow")
+      {
+        lidarParam.temporalEdgeThresholdLow = param.as_int();
+      }
+      else if (param.get_name() == "X. temporalEdgeThresholdHigh")
+      {
+        lidarParam.temporalEdgeThresholdHigh = param.as_int();
+      }
+      */
+      else if (param.get_name() == "V. interferenceDetectionLimit")
+      {
+        lidarParam.interferenceDetectionLimit = param.as_int();
+      }
+      else if (param.get_name() == "V. useLastValue")
+      {
+        lidarParam.useLastValue = param.as_bool();
+      }
       else if (param.get_name() == "A. cvShow")
       {
         lidarParam.cvShow = param.as_bool();
@@ -138,6 +180,7 @@ roboscanPublisher::~roboscanPublisher()
     setReconfigure();
     return result;
   }
+
 
   void roboscanPublisher::setReconfigure()
   {
@@ -150,7 +193,7 @@ roboscanPublisher::~roboscanPublisher()
     interface.setIntegrationTime(lidarParam.int0, lidarParam.int1, lidarParam.int2, lidarParam.intGr, lidarParam.grayscaleIlluminationMode);
         
     interface.setHDRMode((uint8_t)lidarParam.hdr_mode);
-    interface.setFilter(lidarParam.medianFilter, lidarParam.averageFilter, static_cast<uint16_t>(lidarParam.temporalFilterFactor * 1000), lidarParam.temporalFilterThreshold, lidarParam.edgeThreshold,
+    interface.setFilter(lidarParam.medianFilter, lidarParam.averageFilter, static_cast<uint16_t>(lidarParam.temporalFilterFactor * 1000), lidarParam.temporalFilterThreshold, lidarParam.edgeFilterThreshold,
                         lidarParam.temporalEdgeThresholdLow, lidarParam.temporalEdgeThresholdHigh, lidarParam.interferenceDetectionLimit, lidarParam.useLastValue);
 
     interface.setAdcOverflowSaturation(lidarParam.bAdcOverflow, lidarParam.bSaturation);
@@ -158,7 +201,8 @@ roboscanPublisher::~roboscanPublisher()
    
     if(lidarParam.frequencyModulation == 0) lidarParam.modIndex = 1;
     else if(lidarParam.frequencyModulation == 1)  lidarParam.modIndex = 0;
-    else    lidarParam.modIndex = lidarParam.frequencyModulation;
+    else if(lidarParam.frequencyModulation == 2)  lidarParam.modIndex = 2;
+    else    lidarParam.modIndex = 3;
 
     interface.setModulation(lidarParam.modIndex, lidarParam.channel);
     interface.setRoi(lidarParam.roi_leftX, lidarParam.roi_topY, lidarParam.roi_rightX, lidarParam.roi_bottomY);
@@ -214,7 +258,7 @@ roboscanPublisher::~roboscanPublisher()
     lidarParam.averageFilter = false;
     lidarParam.temporalFilterFactor = 0;
     lidarParam.temporalFilterThreshold = 0;
-    lidarParam.edgeThreshold = 0;
+    lidarParam.edgeFilterThreshold = 0;
     lidarParam.temporalEdgeThresholdLow = 0;
     lidarParam.temporalEdgeThresholdHigh = 0;
     lidarParam.interferenceDetectionLimit = 0;
@@ -241,7 +285,7 @@ roboscanPublisher::~roboscanPublisher()
     rclcpp::Parameter pInt2("G. int2", lidarParam.int2);
     rclcpp::Parameter pIntGr("H. intGr", lidarParam.intGr);
     rclcpp::Parameter pMinAmplitude("I. minAmplitude", lidarParam.minAmplitude);
-    rclcpp::Parameter pModIndex("J. modIndex", lidarParam.modIndex);
+    rclcpp::Parameter pModIndex("J. modIndex", lidarParam.frequencyModulation);
     rclcpp::Parameter pChannel("K. channel", lidarParam.channel);
     rclcpp::Parameter pRoi_leftX("L. roi_leftX", lidarParam.roi_leftX);
     rclcpp::Parameter pRoi_topY("M. roi_topY", lidarParam.roi_topY);
@@ -249,8 +293,19 @@ roboscanPublisher::~roboscanPublisher()
     rclcpp::Parameter pRoi_bottomY("O. roi_bottomY", lidarParam.roi_bottomY);
     rclcpp::Parameter pTransformAngle("P. transformAngle", lidarParam.transformAngle);
     rclcpp::Parameter pCutpixels("Q. cutPixels", lidarParam.cutPixels);
+    rclcpp::Parameter pMedianFilter("R. medianFilter", lidarParam.medianFilter);
+    rclcpp::Parameter pAverageFilter("S. averageFilter", lidarParam.averageFilter);
+    rclcpp::Parameter pTemporalFilterFactor("T. temporalFilterFactor", lidarParam.temporalFilterFactor);
+    rclcpp::Parameter pTemporalFilterThreshold("T. temporalFilterFactorThreshold", lidarParam.temporalFilterThreshold);
+    rclcpp::Parameter pEdgeFilterThreshold("U. edgeFilterThreshold", lidarParam.edgeFilterThreshold);
+    //rclcpp::Parameter pTemporalEdgeThresholdLow("W temporalEdgeThresholdLow", lidarParam.temporalEdgeThresholdLow);
+    //rclcpp::Parameter pTemporalEdgeThresholdHigh("X temporalEdgeThresholdHigh", lidarParam.temporalEdgeThresholdHigh);
+    rclcpp::Parameter pInterferenceDetectionLimit("V. interferenceDetectionLimit", lidarParam.interferenceDetectionLimit);
+    rclcpp::Parameter pUseLastValue("V. useLastValue", lidarParam.useLastValue);
+
     rclcpp::Parameter pCvShow("A. cvShow", lidarParam.cvShow);
 
+  
     this->declare_parameter<int>("B. lensType", lidarParam.lensType);
     this->declare_parameter<int>("C. imageType", lidarParam.imageType);
     this->declare_parameter<int>("D. hdr_mode", lidarParam.hdr_mode);
@@ -259,7 +314,7 @@ roboscanPublisher::~roboscanPublisher()
     this->declare_parameter<int>("G. int2", lidarParam.int2);
     this->declare_parameter<int>("H. intGr",lidarParam.intGr);
     this->declare_parameter<int>("I. minAmplitude", lidarParam.minAmplitude);
-    this->declare_parameter<int>("J. modIndex", lidarParam.modIndex);
+    this->declare_parameter<int>("J. modIndex", lidarParam.frequencyModulation);
     this->declare_parameter<int>("K. channel", lidarParam.channel);
     this->declare_parameter<int>("L. roi_leftX", lidarParam.roi_leftX);
     this->declare_parameter<int>("M. roi_topY", lidarParam.roi_topY);
@@ -267,6 +322,16 @@ roboscanPublisher::~roboscanPublisher()
     this->declare_parameter<int>("O. roi_bottomY", lidarParam.roi_bottomY);
     this->declare_parameter<double>("P. transformAngle", lidarParam.transformAngle);
     this->declare_parameter<int>("Q. cutPixels", lidarParam.transformAngle);
+    this->declare_parameter<bool>("R. medianFilter", lidarParam.medianFilter);
+    this->declare_parameter<bool>("S. averageFilter", lidarParam.averageFilter);
+    this->declare_parameter<double>("T. temporalFilterFactor", lidarParam.temporalFilterFactor);
+    this->declare_parameter<int>("T. temporalFilterFactorThreshold", lidarParam.temporalFilterThreshold);
+    this->declare_parameter<int>("U. edgeFilterThreshold", lidarParam.edgeFilterThreshold);
+    //this->declare_parameter<int>("W temporalEdgeThresholdLow", lidarParam.temporalEdgeThresholdLow);
+    //this->declare_parameter<int>("X temporalEdgeThresholdHigh", lidarParam.temporalEdgeThresholdHigh);
+    this->declare_parameter<int>("V. interferenceDetectionLimit", lidarParam.interferenceDetectionLimit);
+    this->declare_parameter<bool>("V. useLastValue", lidarParam.useLastValue);
+
     this->declare_parameter<bool>("A. cvShow", lidarParam.cvShow);
     
     this->set_parameter(pLensType);
@@ -285,6 +350,16 @@ roboscanPublisher::~roboscanPublisher()
     this->set_parameter(pRoi_bottomY);
     this->set_parameter(pTransformAngle);
     this->set_parameter(pCutpixels);
+    this->set_parameter(pMedianFilter);
+    this->set_parameter(pAverageFilter);
+    this->set_parameter(pTemporalFilterFactor);
+    this->set_parameter(pTemporalFilterThreshold);
+    this->set_parameter(pEdgeFilterThreshold);
+    //this->set_parameter(pTemporalEdgeThresholdLow);
+    //this->set_parameter(pTemporalEdgeThresholdHigh);
+    this->set_parameter(pInterferenceDetectionLimit);
+    this->set_parameter(pUseLastValue);
+
     this->set_parameter(pCvShow);
 
     //std::shared_ptr<rclcpp::Node> node = rclcpp::Node::make_shared("cameraSub");
@@ -306,7 +381,7 @@ roboscanPublisher::~roboscanPublisher()
     interface.setIntegrationTime(lidarParam.int0, lidarParam.int1, lidarParam.int2, lidarParam.intGr, lidarParam.grayscaleIlluminationMode);
         
     interface.setHDRMode((uint8_t)lidarParam.hdr_mode);
-    interface.setFilter(lidarParam.medianFilter, lidarParam.averageFilter, static_cast<uint16_t>(lidarParam.temporalFilterFactor * 1000), lidarParam.temporalFilterThreshold, lidarParam.edgeThreshold,
+    interface.setFilter(lidarParam.medianFilter, lidarParam.averageFilter, static_cast<uint16_t>(lidarParam.temporalFilterFactor * 1000), lidarParam.temporalFilterThreshold, lidarParam.edgeFilterThreshold,
                         lidarParam.temporalEdgeThresholdLow, lidarParam.temporalEdgeThresholdHigh, lidarParam.interferenceDetectionLimit, lidarParam.useLastValue);
 
     interface.setAdcOverflowSaturation(lidarParam.bAdcOverflow, lidarParam.bSaturation);
@@ -628,7 +703,7 @@ roboscanPublisher::~roboscanPublisher()
 
             
           //distance 
-          if(distance == LOW_AMPLITUDE)
+          if(distance == LOW_AMPLITUDE || distance == INTERFERENCE || distance == EDGE_FILTERED)
             distance = 0;
             
 

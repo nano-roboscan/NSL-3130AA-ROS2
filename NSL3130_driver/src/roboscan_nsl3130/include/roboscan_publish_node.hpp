@@ -30,16 +30,8 @@ namespace nanosys {
         uint16_t imageType;
         uint16_t lensType;
         uint16_t old_lensType;
-        bool medianFilter;
-        bool averageFilter;
-        double temporalFilterFactor;
-        uint16_t temporalFilterThreshold;
-        uint16_t edgeThreshold;
-        uint16_t temporalEdgeThresholdLow;
-		uint16_t temporalEdgeThresholdHigh;
-		uint16_t interferenceDetectionLimit;
+        
 		bool startStream;
-		bool useLastValue;
 		bool publishPointCloud;
 		bool cartesian;
 		uint16_t channel;
@@ -63,6 +55,16 @@ namespace nanosys {
 		uint8_t bSaturation = 1;
 		double transformAngle;
 		uint8_t cutPixels;
+
+		bool medianFilter;
+        bool averageFilter;
+       	double temporalFilterFactor ;
+        uint16_t temporalFilterThreshold;        
+        uint16_t edgeFilterThreshold;
+        uint16_t temporalEdgeThresholdLow;
+		uint16_t temporalEdgeThresholdHigh;
+		uint16_t interferenceDetectionLimit;
+		bool useLastValue;
 
 		uint32_t frameSeq;
 		bool cvShow;
