@@ -59,8 +59,7 @@ modIndex 0 : 24MHz
 modIndex 1 : 12MHz
 modIndex 2 : 6MHz
 modIndex 3 : 3MHz
-modIndex 4 : 1.5MHz
-modIndex 5 : 0.75MHz
+
 
 transformAngle : angle (rviz-based y-axis rotation)
 ```
