@@ -3,6 +3,10 @@
 #include "frame.hpp"
 #include "interface.hpp"
 
+
+std::chrono::system_clock::time_point start;
+std::chrono::system_clock::time_point end;
+
 namespace nanosys {
 
 Interface::Interface() : tcpConnection(ioService),
@@ -10,7 +14,9 @@ Interface::Interface() : tcpConnection(ioService),
     isStreaming(0),
     dataType(0),
     currentFrame_id(0),
-    data(Packet(25+320*240*4*2))
+    data(Packet(25+320*240*4*2)),
+    currentFrameIdx(0),
+    frameRxCnt(0)
 {
     serverThread.reset(new boost::thread(boost::bind(&boost::asio::io_service::run, &ioService)));
     udpServer.subscribe([&](const Packet& p) -> void
@@ -21,26 +27,65 @@ Interface::Interface() : tcpConnection(ioService),
 
 		if( !isStreaming ) return;
 
-        if(packetNum == 0) { // new frame
-            uint16_t width  = (p[23] << 8) + p[24];
-            uint16_t height = (p[25] << 8) + p[26];
-            int payloadHeaderOffset = (p[43] << 8) + p[44];
+		if( packetNum == frameRxCnt ){
+	        if(packetNum == 0 ) { // new frame
+	            uint16_t width  = (p[23] << 8) + p[24];
+	            uint16_t height = (p[25] << 8) + p[26];
+	            int payloadHeaderOffset = (p[43] << 8) + p[44];
 
-            currentFrame = std::shared_ptr<Frame>(new Frame(dataType, currentFrame_id++, width, height, payloadHeaderOffset));
-            memcpy(&data[offset], &p[Frame::UDP_HEADER_OFFSET], payloadSize);
-            cameraInfoReady(getCameraInfo(p));
+//				start = std::chrono::system_clock::now();
+//				std::chrono::milliseconds timeCnt = std::chrono::duration_cast<std::chrono::milliseconds>(start-end);
+//				printf("start time = %ld ms\n", timeCnt.count());
 
-        }else if( currentFrame.use_count() > 0 ){
-            uint32_t numPackets = (p[12] << 24) + (p[13] << 16) + (p[14] << 8) + p[15];
-            memcpy(&data[offset], &p[Frame::UDP_HEADER_OFFSET], payloadSize);
+	            currentFrame[currentFrameIdx] = std::shared_ptr<Frame>(new Frame(dataType, currentFrame_id++, width, height, payloadHeaderOffset));
+	            memcpy(&data[offset], &p[Frame::UDP_HEADER_OFFSET], payloadSize);
+	            cameraInfoReady(getCameraInfo(p));
 
-            if (packetNum == numPackets - 1) { //last frame                                
-                currentFrame->sortData(data);  //copy data -> dist, ampl, dcs
-                frameReady(currentFrame);
-            }
-        }
+				frameRxCnt++;
+
+	        }else if( currentFrame[currentFrameIdx].use_count() > 0 ){
+	            uint32_t numPackets = (p[12] << 24) + (p[13] << 16) + (p[14] << 8) + p[15];
+	            memcpy(&data[offset], &p[Frame::UDP_HEADER_OFFSET], payloadSize);
+
+//				if( frameRxCnt != packetNum ){
+//					printf("error::frameRxCnt = %d packetNum = %d\n", frameRxCnt, packetNum);
+//				}
+
+				frameRxCnt++;
+
+	            if (packetNum == numPackets - 1) { //last frame                                
+	                currentFrame[currentFrameIdx]->sortData(data);  //copy data -> dist, ampl, dcs
+#ifdef __CLIENT_FILTER__
+					currentFrame[currentFrameIdx]->usedTemporalFactor = usedTemporalFactor;
+					currentFrame[currentFrameIdx]->usedTemporalThreshold = usedTemporalThreshold;
+					currentFrame[currentFrameIdx]->usedEdgeThreshold = usedEdgeThreshold;
+					currentFrame[currentFrameIdx]->filterSelector = filterSelector;
+#endif
+//					end = std::chrono::system_clock::now();
+//					std::chrono::milliseconds timeCnt = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+//					printf("end time = %ld ms\n", timeCnt.count());
+
+	                frameReady(currentFrame[currentFrameIdx]);
+					currentFrameIdx ^= 1;
+
+//					std::chrono::system_clock::time_point update = std::chrono::system_clock::now();
+//					timeCnt = std::chrono::duration_cast<std::chrono::milliseconds>(update - end);
+//					printf("update time = %ld ms\n", timeCnt.count());
+//					end = std::chrono::system_clock::now();
+
+//					if( frameRxCnt != 220 )		printf("err frameRxCnt = %d\n", frameRxCnt);
+					frameRxCnt = 0;
+	            }
+	        }
+		}else{
+			frameRxCnt = 0;
+		}
     }); //end lambda function
-    
+	
+	usedTemporalFactor = 0;
+	usedTemporalThreshold = 0;
+	usedEdgeThreshold = 0;
+	filterSelector = 0;
 }
 
 Interface::~Interface() {
@@ -295,8 +340,47 @@ void Interface::getChipInfomation()
     tcpConnection.sendCommand(payload);
 }
 
-void Interface::setFilter(const bool medianFilter, const bool averageFilter, const uint16_t temporalFactor, const uint16_t temporalThreshold, const uint16_t edgeThreshold, const uint16_t temporalEdgeThresholdLow, const uint16_t temporalEdgeThresholdHigh, const uint16_t interferenceDetectionLimit, const bool interferenceDetectionUseLastValue)
+
+void Interface::setFilter(bool medianFilter, bool averageFilter, uint16_t temporalFactor, uint16_t temporalThreshold, uint16_t edgeThreshold, uint16_t temporalEdgeThresholdLow, uint16_t temporalEdgeThresholdHigh, uint16_t interferenceDetectionLimit, bool interferenceDetectionUseLastValue)
 {
+#ifdef __CLIENT_FILTER__
+	usedTemporalFactor = temporalFactor;
+	usedTemporalThreshold = temporalThreshold;
+	usedEdgeThreshold = edgeThreshold;
+
+	if( medianFilter )		
+		filterSelector |= MASK_MEDIAN_FILTER;
+	else
+		filterSelector &= ~MASK_MEDIAN_FILTER;
+
+	if( averageFilter )		
+		filterSelector |= MASK_AVERAGE_FILTER;
+	else
+		filterSelector &= ~MASK_AVERAGE_FILTER;
+
+	if( edgeThreshold > 0 )
+		filterSelector |= MASK_EDGE_FILTER;
+	else
+		filterSelector &= ~MASK_EDGE_FILTER;
+
+	if ((temporalThreshold == 0) ||
+	    (temporalFactor == 0) ||
+	    (temporalFactor >= 1000))
+	{
+		filterSelector &= ~MASK_TEMPORAL_FILTER;
+	}
+	else
+		filterSelector |= MASK_TEMPORAL_FILTER;
+
+
+
+	temporalFactor = 0;
+	temporalThreshold = 0;
+	edgeThreshold = 0;
+	medianFilter = false;
+	averageFilter = false;
+#endif
+
     std::vector<uint8_t> payload;
     uint16_t command = COMMAND_SET_FILTER;
 

@@ -15,8 +15,14 @@ grayData(std::vector<uint8_t>(width * height * px_size)), //16 bit
 distData(std::vector<uint8_t>(width * height * px_size)), //16 bit
 amplData(std::vector<uint8_t>(width * height * px_size)), //16 bit
 dcsData(std::vector<uint8_t> (width * height * px_size * 4)), //16 bit 4 dcs
+dist2ByteData(std::vector<uint16_t>(width * height)), //16 bit
+lastDistData(std::vector<uint16_t>(width * height)), //16 bit
 payloadHeaderOffset(payloadOffset)
 {    
+	usedTemporalFactor = 0;
+	usedTemporalThreshold = 0;
+	usedEdgeThreshold = 0;
+	filterSelector = 0;
 }
 
 void Frame::sortData(const Packet &data)
@@ -28,6 +34,7 @@ void Frame::sortData(const Packet &data)
         int sz = payloadHeaderOffset + width * height * px_size * 2;
         for(j=0, i = payloadHeaderOffset; i < sz; i+=4, j+=2){
             //if(data[i+1] > 61) { continue; }
+            dist2ByteData[j>>1] = (data[i+1] << 8) + data[i];
             distData[j]   = data[i];
             distData[j+1] = data[i+1];
             amplData[j]   = data[i+2];
@@ -39,6 +46,7 @@ void Frame::sortData(const Packet &data)
         int sz = payloadHeaderOffset + width * height * px_size;
         for(j=0, i = payloadHeaderOffset; i < sz; i+=2, j+=2){
             //if(data[i+1] > 61) { continue; }
+            dist2ByteData[j>>1] = (data[i+1] << 8) + data[i];
             distData[j]    = data[i];
             distData[j+1]  = data[i+1];
 
@@ -57,6 +65,7 @@ void Frame::sortData(const Packet &data)
         int sz = payloadHeaderOffset + width * height * px_size * 2;
         for(j=0, i = payloadHeaderOffset; i < sz; i+=4, j+=2){
             //if(data[i+1] > 61) { continue; }
+            dist2ByteData[j>>1] = (data[i+1] << 8) + data[i];
             distData[j]   = data[i];
             distData[j+1] = data[i+1];
             amplData[j]   = data[i+2];
@@ -65,7 +74,7 @@ void Frame::sortData(const Packet &data)
     }else if(dataType == Frame::DISTANCE_AMPLITUDE_GRAYSCALE){//distance-amplitude-grayscale
         int sz = payloadHeaderOffset + width * height * px_size * 3;
         for(j=0, i = payloadHeaderOffset; i < sz; i+=6, j+=2){
-
+            dist2ByteData[j>>1] = (data[i+1] << 8) + data[i];
             distData[j]   = data[i];
             distData[j+1] = data[i+1];
             amplData[j]   = data[i+2];

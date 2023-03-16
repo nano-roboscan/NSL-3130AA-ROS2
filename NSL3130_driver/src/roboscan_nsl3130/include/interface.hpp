@@ -7,6 +7,12 @@
 #include "tcp_connection.hpp"
 #include "udp_server.hpp"
 
+//#define __CLIENT_FILTER__
+
+#define MASK_TEMPORAL_FILTER	0x01
+#define MASK_AVERAGE_FILTER		0x02
+#define MASK_MEDIAN_FILTER		0x04
+#define MASK_EDGE_FILTER		0x08
 
 namespace nanosys {
 
@@ -30,9 +36,7 @@ public:
   void setIntegrationTime(uint16_t, uint16_t, uint16_t, uint16_t, uint8_t);
   void setHDRMode(uint8_t mode);
   void setModulation(const uint8_t index, const uint8_t channel);
-  void setFilter(const bool medianFilter, const bool averageFilter, const uint16_t temporalFactor, const uint16_t temporalThreshold, const uint16_t edgeThreshold,
-                 const uint16_t temporalEdgeThresholdLow, const uint16_t temporalEdgeThresholdHigh, const uint16_t interferenceDetectionLimit, const bool interferenceDetectionUseLastValue);
-
+  void setFilter(bool medianFilter, bool averageFilter, uint16_t temporalFactor, uint16_t temporalThreshold, uint16_t edgeThreshold, uint16_t temporalEdgeThresholdLow, uint16_t temporalEdgeThresholdHigh, uint16_t interferenceDetectionLimit, bool interferenceDetectionUseLastValue);
   void setGrayscaleIlluminationMode(uint8_t mode);
   void setAdcOverflowSaturation(uint8_t bAdcOverflow, uint8_t bSaturation);
   void setCompensation(uint8_t bDrnu, uint8_t bTemperature, uint8_t bGrayscale, uint8_t bAmbientLight);
@@ -76,7 +80,7 @@ private:
 
 
 
-  std::shared_ptr<Frame> currentFrame;
+  std::shared_ptr<Frame> currentFrame[2];
   boost::asio::io_service ioService;
   boost::scoped_ptr<boost::thread> serverThread;
   boost::signals2::signal<void (std::shared_ptr<Frame>)> frameReady;
@@ -87,8 +91,16 @@ private:
   uint8_t dataType;
   uint64_t currentFrame_id;  
   Packet data;
+  int currentFrameIdx;
+  uint32_t frameRxCnt;
 
+  uint16_t usedTemporalFactor;
+  uint16_t usedTemporalThreshold;
+  uint16_t usedEdgeThreshold;
+  int32_t edgeDetectX;
+  int32_t edgeDetectY;
 
+  uint32_t filterSelector;					///<Variable containing filter flags
 
   void setDataType(uint8_t);  
   void streamMeasurement(uint8_t);

@@ -80,12 +80,14 @@ namespace nanosys {
 
 class roboscanPublisher : public rclcpp::Node { 
 
+	static const int PIXEL_VALID_DATA = 64000;
 	static const int LOW_AMPLITUDE = 64001;
 	static const int ADC_OVERFLOW = 64002;
 	static const int SATURATION = 64003;
 	static const int BAD_PIXEL = 64004;
 	static const int INTERFERENCE = 64007;
 	static const int EDGE_FILTERED = 64008;
+	static const int TEMPORAL_FILTER_FACTOR_MAX = 1000;
 
 	const int width   = 320;
 	const int width2  = 160;
@@ -93,12 +95,24 @@ class roboscanPublisher : public rclcpp::Node {
 	const int height2 = 120;
 	const double sensorPixelSizeMM = 0.02; //camera sensor pixel size 20x20 um
 
+	int32_t edgeDetectX, edgeDetectY;
+
 public:
 	roboscanPublisher();
 	~roboscanPublisher();
 
-
-
+	double interpolate( double x, double x0, double y0, double x1, double y1);
+	void createColorMapPixel(int numSteps, int indx, unsigned char &red, unsigned char &green, unsigned char &blue);
+	uint32_t medianFilter(uint32_t distance, std::vector<uint16_t> pData, const int32_t *pIndexList, const uint32_t x, const uint32_t y, const uint32_t width, const uint32_t height);
+	uint32_t averageFilter(uint32_t distance, std::vector<uint16_t> pData, const int32_t *pIndexList, const uint32_t x, const uint32_t y, const uint32_t width, const uint32_t height);
+	uint32_t temporalfilter(std::shared_ptr<Frame> currentFrame, const uint32_t actValue, const uint32_t lastValue);
+	uint32_t edgeFilter(std::shared_ptr<Frame> currentFrame, const uint32_t distance, std::vector<uint16_t> pData, const int32_t *pIndexList, uint32_t x, uint32_t y, const uint32_t width, const uint32_t height);
+	void runGenericFilter(std::shared_ptr<Frame> currentFrame);
+	void initIndexes(int32_t *pIndexList, const uint32_t width);
+	void incIndexes(int32_t *pIndexList);
+	bool quickSort(uint32_t *arr, uint32_t elements);
+	void processFilter(std::shared_ptr<Frame> frame);
+	int setDistanceColor(cv::Mat &imageLidar, int x, int y, int value );
 	void setReconfigure();
 	void updateFrame(std::shared_ptr<Frame> frame);
 	void getGrayscaleColor(cv::Mat &imageLidar, int x, int y, int value, double end_range );
@@ -107,7 +121,8 @@ public:
 	boost::signals2::connection connectionFrames;
 	boost::signals2::connection connectionCameraInfo;
 
-	//rclcpp::Service<sensor_msgs::srv::SetCameraInfo>::SharedPtr cameraInfoService;
+	std::vector<cv::Vec3b> colorVector;
+	
 
 	Interface interface;
 	CartesianTransform cartesianTransform;
@@ -125,7 +140,7 @@ public:
 	int Convert_To_RGB24( float fValue, RGB888Pixel *nRGBData, float fMinValue, float fMaxValue);
 
     SetParameter lidarParam;
-
+	float maxDistance;
 
 private:
 	void initialise();

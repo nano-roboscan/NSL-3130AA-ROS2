@@ -24,8 +24,15 @@ namespace nanosys {
         std::vector<uint8_t> distData;
         std::vector<uint8_t> amplData;
         std::vector<uint8_t> dcsData;
+		
+        std::vector<uint16_t> dist2ByteData;
+        std::vector<uint16_t> lastDistData;
         uint16_t payloadHeaderOffset;
 
+		uint16_t usedTemporalFactor;
+		uint16_t usedTemporalThreshold;
+		uint16_t usedEdgeThreshold;
+		uint32_t filterSelector;				  ///<Variable containing filter flags
 
         Frame(uint16_t, uint64_t, uint16_t, uint16_t, uint16_t);
         void sortData(const Packet&);

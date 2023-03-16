@@ -5,8 +5,12 @@
 
 namespace nanosys{
 
-CartesianTransform::CartesianTransform(){
-
+CartesianTransform::CartesianTransform()
+{
+	fixAngle = 0;
+	angleR = fixAngle * 3.1415926 / 180.0;
+	sin_angle = sin(angleR);
+	cos_angle = cos(angleR);   
 }
 
 CartesianTransform::~CartesianTransform(){
@@ -490,13 +494,7 @@ void CartesianTransform::transformPixel(uint srcX, uint srcY, double srcZ, doubl
         angleR = fixAngle * 3.1415926 / 180.0;
         sin_angle = sin(angleR);
         cos_angle = cos(angleR);   
-    }
-    if(fixAngle == 0)
-    {
-        sin_angle = 0;
-        cos_angle = 1;
-    }
-    
+    }    
 
     double y = srcZ *yUA[srcX][srcY];
     double z = srcZ *zUA[srcX][srcY];
