@@ -41,8 +41,8 @@ cvShow : Image Viewer on/off
 channel : 0 ~ 15
 
 hdr_mode 0 : HDR off
-hdr_mode 1 : Temperal HDR
-hdr_mode 2 : Spatial HDR
+hdr_mode 1 : Spatial HDR
+hdr_mode 2 : Temperal HDR
 
 imageType 0 : Grayscale 
 imageType 1 : Distance 
