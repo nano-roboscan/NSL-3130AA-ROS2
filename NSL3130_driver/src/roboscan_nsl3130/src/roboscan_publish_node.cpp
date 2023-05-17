@@ -31,6 +31,26 @@ using namespace std::chrono_literals;
 using namespace cv;
 
 
+std::atomic<int> x_start = -1, y_start = -1;
+
+
+static void callback_mouse_click(int event, int x, int y, int flags, void* user_data)
+{
+	std::ignore = flags;
+	std::ignore = user_data;
+	
+	if (event == cv::EVENT_LBUTTONDOWN)
+	{
+		x_start = x;
+		y_start = y;
+	}
+	else if (event == cv::EVENT_LBUTTONUP)
+	{
+	}
+	else if (event == cv::EVENT_MOUSEMOVE)
+	{
+	}
+}
 
 
 roboscanPublisher::roboscanPublisher() : Node("roboscan_publish_node")
@@ -49,6 +69,17 @@ roboscanPublisher::roboscanPublisher() : Node("roboscan_publish_node")
     roboscanPublisher::startStreaming();
     callback_handle_ = this->add_on_set_parameters_callback(std::bind(&roboscanPublisher::parametersCallback, this, std::placeholders::_1));
 
+
+	int numSteps = NUM_COLORS;
+	unsigned char red, green, blue;
+
+	for(int i=0;  i< numSteps; i++)
+	{
+	  createColorMapPixel(numSteps, i, red, green, blue);
+	  colorVector.push_back(Vec3b(blue, green, red));
+	}
+	mouseXpos = -1;
+	mouseYpos = -1;
 
     printf("\nRun rqt to view the image!\n");
     
@@ -185,10 +216,10 @@ roboscanPublisher::~roboscanPublisher()
   void roboscanPublisher::setReconfigure()
   {
     //int0 = integrationTime0;
-
+	
     printf("setReconfigure\n");
-
-    interface.stopStream();    
+	
+    interface.stopStream();
     interface.setMinAmplitude(lidarParam.minAmplitude);
     interface.setIntegrationTime(lidarParam.int0, lidarParam.int1, lidarParam.int2, lidarParam.intGr, lidarParam.grayscaleIlluminationMode);
         
@@ -237,9 +268,12 @@ roboscanPublisher::~roboscanPublisher()
   void roboscanPublisher::initialise()
   {
     printf("Init roboscan_nsl3130 node\n");
+	cv::namedWindow(WIN_NAME, cv::WINDOW_AUTOSIZE);
+	//cv::setMouseCallback(WIN_NAME, callback_mouse_click, NULL);
 
-    interface.stopStream();
-    
+	interface.stopStream();
+
+	
     lidarParam.lensType = 2;
     lidarParam.lensCenterOffsetX = 0;
     lidarParam.lensCenterOffsetY = 0;
@@ -274,9 +308,10 @@ roboscanPublisher::~roboscanPublisher()
     lidarParam.cutPixels = 0;
 
     lidarParam.cvShow = false;
+	
     //roi_height
 
-
+	rclcpp::Parameter pCvShow("A. cvShow", lidarParam.cvShow);
     rclcpp::Parameter pLensType("B. lensType", lidarParam.lensType);
     rclcpp::Parameter pImageType("C. imageType", lidarParam.imageType);
     rclcpp::Parameter pHdr_mode("D. hdr_mode", lidarParam.hdr_mode);
@@ -303,9 +338,8 @@ roboscanPublisher::~roboscanPublisher()
     rclcpp::Parameter pInterferenceDetectionLimit("V. interferenceDetectionLimit", lidarParam.interferenceDetectionLimit);
     rclcpp::Parameter pUseLastValue("V. useLastValue", lidarParam.useLastValue);
 
-    rclcpp::Parameter pCvShow("A. cvShow", lidarParam.cvShow);
 
-  
+  	this->declare_parameter<bool>("A. cvShow", lidarParam.cvShow);
     this->declare_parameter<int>("B. lensType", lidarParam.lensType);
     this->declare_parameter<int>("C. imageType", lidarParam.imageType);
     this->declare_parameter<int>("D. hdr_mode", lidarParam.hdr_mode);
@@ -332,8 +366,9 @@ roboscanPublisher::~roboscanPublisher()
     this->declare_parameter<int>("V. interferenceDetectionLimit", lidarParam.interferenceDetectionLimit);
     this->declare_parameter<bool>("V. useLastValue", lidarParam.useLastValue);
 
-    this->declare_parameter<bool>("A. cvShow", lidarParam.cvShow);
-    
+
+
+	this->set_parameter(pCvShow);
     this->set_parameter(pLensType);
     this->set_parameter(pImageType);
     this->set_parameter(pHdr_mode);
@@ -360,7 +395,8 @@ roboscanPublisher::~roboscanPublisher()
     this->set_parameter(pInterferenceDetectionLimit);
     this->set_parameter(pUseLastValue);
 
-    this->set_parameter(pCvShow);
+
+    
 
     //std::shared_ptr<rclcpp::Node> node = rclcpp::Node::make_shared("cameraSub");
     //cameraInfoService = node->create_service<sensor_msgs::srv::SetCameraInfo>("cameraSub", &setCameraInfo);
@@ -443,6 +479,71 @@ roboscanPublisher::~roboscanPublisher()
       break;
     }
   }
+
+  double roboscanPublisher::interpolate( double x, double x0, double y0, double x1, double y1){
+  
+	  if( x1 == x0 ){
+		  return y0;
+	  } else {
+		  return ((x-x0)*(y1-y0)/(x1-x0) + y0);
+	  }
+  
+  }
+
+  void roboscanPublisher::createColorMapPixel(int numSteps, int indx, unsigned char &red, unsigned char &green, unsigned char &blue)
+  {
+    double k = 1;
+    double BIT0 = -0.125 * k - 0.25;
+    double BIT1 = BIT0 + 0.25 * k;
+    double BIT2 = BIT1 + 0.25 * k;
+    double BIT3 = BIT2 + 0.25 * k;
+
+    double G0 = BIT1;
+    double G1 = G0 + 0.25 * k;
+    double G2 = G1 + 0.25 * k;
+    double G3 = G2 + 0.25 * k + 0.125;
+
+    double R0 = BIT2;
+    double R1 = R0 + 0.25 * k;
+    double R2 = R1 + 0.25 * k;
+    double R3 = R2 + 0.25 * k + 0.25;
+
+    double i = (double)indx/(double)numSteps - 0.25 * k;
+
+    if( i>= R0 && i < R1 ){
+        red = interpolate(i, R0, 0, R1, 255);
+    } else if((i >= R1) && (i < R2)){
+        red = 255;
+    } else if((i >= R2) && (i < R3)) {
+        red = interpolate(i, R2, 255, R3, 0);
+    } else {
+        red = 0;
+    }
+
+    if( i>= G0 && i < G1 ){
+        green = interpolate(i, G0, 0, G1, 255);
+    } else if((i>=G1)&&(i<G2)){
+        green = 255;
+    } else if((i >= G2)&&(i < G3)){
+        green = interpolate(i, G2, 255, G3, 0);
+    } else {
+        green = 0;
+    }
+
+
+    if( i>= BIT0 && i < BIT1 ){
+        blue = interpolate(i, BIT0, 0, BIT1, 255);
+    } else if((i >= BIT1)&&(i < BIT2)){
+        blue = 255;
+    } else if((i >= BIT2)&&(i < BIT3)) {
+        blue = interpolate(i, BIT2, 255, BIT3, 0);
+    } else{
+        blue = 0;
+    }
+
+  }
+
+  
   int roboscanPublisher::Convert_To_RGB24( float fValue, RGB888Pixel *nRGBData, float fMinValue, float fMaxValue)
   {
     if(fValue == ADC_OVERFLOW)
@@ -527,6 +628,57 @@ roboscanPublisher::~roboscanPublisher()
     return true;
   }
 
+  void roboscanPublisher::setAmplitudeColor(cv::Mat &imageLidar, int x, int y, int value, double end_range )
+  {
+	  if( value == LOW_AMPLITUDE )
+	  {
+		  imageLidar.at<Vec3b>(y, x)[0] = 0;
+		  imageLidar.at<Vec3b>(y, x)[1] = 0;
+		  imageLidar.at<Vec3b>(y, x)[2] = 0; 
+	  }
+	  else if (value == SATURATION)
+	  {
+		  imageLidar.at<Vec3b>(y, x)[0] = 128;
+		  imageLidar.at<Vec3b>(y, x)[1] = 0;
+		  imageLidar.at<Vec3b>(y, x)[2] = 255; 
+	  }
+	  else if (value == ADC_OVERFLOW)
+	  {
+		  imageLidar.at<Vec3b>(y, x)[0] = 255;
+		  imageLidar.at<Vec3b>(y, x)[1] = 14;
+		  imageLidar.at<Vec3b>(y, x)[2] = 169; 
+	  }
+	  else if(value == 0)
+	  {
+		  imageLidar.at<Vec3b>(y, x) = colorVector.at(0);
+	  }
+	  else if (value < 0)
+	  {
+		  imageLidar.at<Vec3b>(y, x)[0] = 0;
+		  imageLidar.at<Vec3b>(y, x)[1] = 0;
+		  imageLidar.at<Vec3b>(y, x)[2] = 0; 
+	  }
+	  else if (value > end_range)
+	  {
+		  imageLidar.at<Vec3b>(y, x)[0] = 0;
+		  imageLidar.at<Vec3b>(y, x)[1] = 0;
+		  imageLidar.at<Vec3b>(y, x)[2] = 0; 
+	  }
+	  else{
+		  int index = value * (NUM_COLORS / end_range);
+		  if( index < 0 ){
+			  printf("error index = %d\n", index);
+			  index = 0;
+		  }
+		  else if( index >= (int)colorVector.size() ){
+			  index = colorVector.size()-1;
+		  }
+		  
+		  imageLidar.at<Vec3b>(y, x) = colorVector.at(index);
+	  }
+  
+  }
+
   void roboscanPublisher::getGrayscaleColor(cv::Mat &imageLidar, int x, int y, int value, double end_range )
   {   
     if (value == SATURATION)
@@ -596,7 +748,8 @@ roboscanPublisher::~roboscanPublisher()
     static rclcpp::Clock s_rclcpp_clock;
     auto data_stamp = s_rclcpp_clock.now();
 
-    cv::Mat imageLidar(height, width, CV_8UC3, Scalar(255, 255, 255));
+    cv::Mat imageLidar(frame->height, frame->width, CV_8UC3, Scalar(255, 255, 255));
+	cv::Mat amplitudeLidar(frame->height, frame->width, CV_8UC3, Scalar(255, 255, 255));
 
     if(frame->dataType == Frame::DISTANCE || frame->dataType == Frame::AMPLITUDE || frame->dataType == Frame::DISTANCE_AND_GRAYSCALE || frame->dataType == Frame::DISTANCE_AMPLITUDE_GRAYSCALE ){
       sensor_msgs::msg::Image imgDistance;
@@ -667,7 +820,9 @@ roboscanPublisher::~roboscanPublisher()
       }
     }
 
-    if(frame->dataType != Frame::GRAYSCALE){
+
+
+	if(frame->dataType != Frame::GRAYSCALE){
         
 
       const size_t nPixel = frame->width * frame->height;
@@ -685,7 +840,7 @@ roboscanPublisher::~roboscanPublisher()
 
       RGB888Pixel* pTex1 = new RGB888Pixel[1];
         
-
+   
       for(k=0, l=0, y=0; y< frame->height; y++)
       {
         for(x=0; x< frame->width; x++, k++, l+=2)
@@ -698,9 +853,12 @@ roboscanPublisher::~roboscanPublisher()
           if(frame->dataType == Frame::DCS)
             distance = (frame->dcsData[l+1] << 8) + frame->dcsData[l];
 
-          if(frame->dataType == Frame::AMPLITUDE)
+          if(frame->dataType == Frame::AMPLITUDE){
+		  	
             amplitude = (frame->amplData[l+1] << 8)  + frame->amplData[l];
-
+			setAmplitudeColor(amplitudeLidar, x, y, amplitude, 4095);
+		
+		  }
             
           //distance 
           if(distance == LOW_AMPLITUDE || distance == INTERFERENCE || distance == EDGE_FILTERED)
@@ -779,9 +937,24 @@ roboscanPublisher::~roboscanPublisher()
 
       }
 
+
       if(lidarParam.cvShow == true)
       {
-        imshow("NSL-31310AA IMAGE", imageLidar);
+		cv::setMouseCallback(WIN_NAME, callback_mouse_click, NULL);
+      	getMouseEvent(mouseXpos, mouseYpos);
+        if(frame->dataType == Frame::AMPLITUDE){
+			cv::hconcat(imageLidar, amplitudeLidar, imageLidar);
+
+			imageLidar = addDistanceInfo(imageLidar, frame->dist2BData, frame->width);
+		}
+		else{
+			
+			if( frame->dataType == Frame::DISTANCE ){
+				imageLidar = addDistanceInfo(imageLidar, frame->dist2BData, frame->width);
+			}
+		}
+		imshow(WIN_NAME, imageLidar);
+       
       }
       else cv::destroyAllWindows();
 
@@ -789,6 +962,37 @@ roboscanPublisher::~roboscanPublisher()
   }
 
 
+cv::Mat roboscanPublisher::addDistanceInfo(cv::Mat distMat, std::vector<uint16_t> dist2BData, int width)
+{
+//	printf("xpos = %d ypos = %d show = %d\n", mouseXpos, mouseYpos, lidarParam.cvShow);
+	if( mouseXpos > 0 || (mouseYpos > 0 && mouseYpos < 240)){
+		// mouseXpos, mouseYpos
+		cv::Mat infoImage(50, distMat.cols, CV_8UC3, Scalar(255, 255, 255));
+
+		cv::line(distMat, cv::Point(mouseXpos-10, mouseYpos), cv::Point(mouseXpos+10, mouseYpos), cv::Scalar(255, 255, 0), 2);
+		cv::line(distMat, cv::Point(mouseXpos, mouseYpos-10), cv::Point(mouseXpos, mouseYpos+10), cv::Scalar(255, 255, 0), 2);
+
+		if( mouseXpos >=320 ) mouseXpos -= 320;
+
+		
+		std::string dist_caption = cv::format("X:%d, Y:%d, %d mm", mouseXpos, mouseYpos, dist2BData[mouseYpos*width + mouseXpos]);
+
+		putText(infoImage, dist_caption.c_str(), cv::Point(10, 30), cv::FONT_HERSHEY_COMPLEX, 1, cv::Scalar(0, 0, 0));
+		cv::vconcat(distMat, infoImage, distMat);
+	}
+	else{
+		cv::Mat infoImage(50, distMat.cols, CV_8UC3, Scalar(255, 255, 255));
+		cv::vconcat(distMat, infoImage, distMat);
+	}
+
+	return distMat;
+}
+
+void roboscanPublisher::getMouseEvent( int &mouse_xpos, int &mouse_ypos )
+{
+	mouse_xpos = x_start;
+	mouse_ypos = y_start;
+}
 
 int main(int argc, char ** argv)
 {

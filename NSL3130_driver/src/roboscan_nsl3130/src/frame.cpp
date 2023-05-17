@@ -15,6 +15,8 @@ grayData(std::vector<uint8_t>(width * height * px_size)), //16 bit
 distData(std::vector<uint8_t>(width * height * px_size)), //16 bit
 amplData(std::vector<uint8_t>(width * height * px_size)), //16 bit
 dcsData(std::vector<uint8_t> (width * height * px_size * 4)), //16 bit 4 dcs
+dist2BData(std::vector<uint16_t>(width * height)),
+
 payloadHeaderOffset(payloadOffset)
 {    
 }
@@ -22,26 +24,33 @@ payloadHeaderOffset(payloadOffset)
 void Frame::sortData(const Packet &data)
 {    
     int i,j;
-
+	uint16_t distanceData;
+	
     if(dataType == Frame::AMPLITUDE){ //distance - amplitude
-
+		int distanceSize = width * height * px_size;
         int sz = payloadHeaderOffset + width * height * px_size * 2;
         for(j=0, i = payloadHeaderOffset; i < sz; i+=4, j+=2){
-            //if(data[i+1] > 61) { continue; }
+            //if(data[i+1] > 61) { continue; }		
+			
             distData[j]   = data[i];
             distData[j+1] = data[i+1];
             amplData[j]   = data[i+2];
             amplData[j+1] = data[i+3] & 0x0f;
+
+			distanceData = (distData[j+1] << 8) + distData[j];
+			dist2BData[j>>1] = distanceData;
         }
 
     }else if(dataType == Frame::DISTANCE){ //distance
-
         int sz = payloadHeaderOffset + width * height * px_size;
         for(j=0, i = payloadHeaderOffset; i < sz; i+=2, j+=2){
             //if(data[i+1] > 61) { continue; }
+			
             distData[j]    = data[i];
             distData[j+1]  = data[i+1];
 
+			distanceData = (distData[j+1] << 8) + distData[j];
+			dist2BData[j>>1] = distanceData;
         }
 
     }else if(dataType == Frame::GRAYSCALE){ //grayscale

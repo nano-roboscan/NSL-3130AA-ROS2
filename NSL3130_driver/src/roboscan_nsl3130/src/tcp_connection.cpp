@@ -10,7 +10,6 @@ typedef std::vector<uint8_t> Packet;
 
 TcpConnection::TcpConnection(boost::asio::io_service& ioService)
   : resolver(ioService), socket(ioService), state(STATE_DISCONNECTED) {
-  connect();
 }
 
 TcpConnection::~TcpConnection() {
@@ -23,6 +22,7 @@ TcpConnection::~TcpConnection() {
 
 void TcpConnection::sendCommand(const std::vector<uint8_t>& data) {
 
+  connect();
   if (!isConnected()) return;
   uint32_t data_len = data.size();
 //  size_t buf_size = MARKER_SIZE + sizeof(data_len) + data_len + MARKER_SIZE;
@@ -43,6 +43,7 @@ void TcpConnection::sendCommand(const std::vector<uint8_t>& data) {
     throw boost::system::system_error(error);
   }
   waitAck();
+  disconnect();
 }
 
 void TcpConnection::connect() {
@@ -59,7 +60,10 @@ void TcpConnection::connect() {
     socket.connect(*endpoint_iterator++, error);
   }
   if (error) {
-    throw::boost::system::system_error(error);
+  	printf("Check connection error(power or IP etc)\n");
+	printf("If occured ip error, Change ip in rqt...waiting for 60sec\n");
+	sleep(60);
+	throw::boost::system::system_error(error);
   }
   updateState(STATE_CONNECTED);
 }
@@ -87,6 +91,7 @@ void TcpConnection::waitAck() {
 
   if (error) {
     throw boost::system::system_error(error);
+	
   }
   this->revertState();
 }

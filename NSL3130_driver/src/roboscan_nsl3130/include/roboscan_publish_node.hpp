@@ -24,9 +24,19 @@
 #include <cstdlib>
 #include <unistd.h>
 
+#define WIN_NAME "NSL-3130AA IMAGE"
+#define NUM_COLORS     		30000
+
 namespace nanosys {
 
 	struct SetParameter {
+		std::string	ipAddr;
+		std::string	ipSub;
+		std::string	ipGw;
+	    uint32_t ipv4_addr;
+		uint32_t ipv4_sub;
+		uint32_t ipv4_gw;
+	
         uint16_t imageType;
         uint16_t lensType;
         uint16_t old_lensType;
@@ -68,6 +78,8 @@ namespace nanosys {
 
 		uint32_t frameSeq;
 		bool cvShow;
+		bool setIp;
+		
     };
 
    	typedef struct _RGB888Pixel
@@ -93,16 +105,21 @@ class roboscanPublisher : public rclcpp::Node {
 	const int height2 = 120;
 	const double sensorPixelSizeMM = 0.02; //camera sensor pixel size 20x20 um
 
+
+
 public:
 	roboscanPublisher();
 	~roboscanPublisher();
 
 
-
+	void thread_callback();
 	void setReconfigure();
 	void updateFrame(std::shared_ptr<Frame> frame);
 	void getGrayscaleColor(cv::Mat &imageLidar, int x, int y, int value, double end_range );
-	void startStreaming();
+	void setAmplitudeColor(cv::Mat &imageLidar, int x, int y, int value, double end_range );
+	void startStreaming();	
+	double interpolate( double x, double x0, double y0, double x1, double y1);
+	void createColorMapPixel(int numSteps, int indx, unsigned char &red, unsigned char &green, unsigned char &blue);
 
 	boost::signals2::connection connectionFrames;
 	boost::signals2::connection connectionCameraInfo;
@@ -125,7 +142,10 @@ public:
 	int Convert_To_RGB24( float fValue, RGB888Pixel *nRGBData, float fMinValue, float fMaxValue);
 
     SetParameter lidarParam;
-
+	std::vector<cv::Vec3b> colorVector;
+	boost::scoped_ptr<boost::thread> publisherThread;
+	bool runThread;
+	
 
 private:
 	void initialise();
@@ -134,6 +154,9 @@ private:
 	bool setCameraInfo(sensor_msgs::srv::SetCameraInfo::Request& req, sensor_msgs::srv::SetCameraInfo::Response& res);
 	OnSetParametersCallbackHandle::SharedPtr callback_handle_;
 	rcl_interfaces::msg::SetParametersResult parametersCallback( const std::vector<rclcpp::Parameter> &parameters);
+	void getMouseEvent( int &mouse_xpos, int &mouse_ypos );
+	cv::Mat addDistanceInfo(cv::Mat distMat, std::vector<uint16_t> dist2BData, int width);
+	int mouseXpos, mouseYpos;
 
 };
 

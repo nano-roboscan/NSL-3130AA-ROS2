@@ -97,6 +97,7 @@ if(BUILD_TESTING)
   set(ament_cmake_cpplint_FOUND TRUE)
   ament_lint_auto_find_test_dependencies()
 endif()
+set(CMAKE_BUILD_TYPE Release)
 
 ament_export_include_directories(include) 
 ament_package()

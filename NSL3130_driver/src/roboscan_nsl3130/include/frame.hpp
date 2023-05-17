@@ -24,6 +24,7 @@ namespace nanosys {
         std::vector<uint8_t> distData;
         std::vector<uint8_t> amplData;
         std::vector<uint8_t> dcsData;
+		std::vector<uint16_t> dist2BData;
         uint16_t payloadHeaderOffset;
 
 

@@ -3,6 +3,7 @@
 #include "frame.hpp"
 #include "interface.hpp"
 
+
 namespace nanosys {
 
 Interface::Interface() : tcpConnection(ioService),
@@ -109,7 +110,7 @@ void Interface::setOffset(int32_t offset){
 }
 
 void Interface::setMinAmplitude(uint16_t minAmplitude){
-
+	
     std::vector<uint8_t> payload;
     uint16_t command = COMMAND_SET_MIN_AMPLITUDE;
 
@@ -266,21 +267,21 @@ void Interface::setDevIpAddress(uint32_t ipaddr, uint32_t subnet, uint32_t gwadd
     uint16_t command = COMMAND_SET_CAMERA_IP_SETTINGS;
 
     insertValue(payload, command);
-
-    payload.push_back(static_cast<uint8_t>(ipaddr>>24 & 0xFF));
-    payload.push_back(static_cast<uint8_t>(ipaddr>>16 & 0xFF));
-    payload.push_back(static_cast<uint8_t>(ipaddr>>8 & 0xFF));
+	
     payload.push_back(static_cast<uint8_t>(ipaddr>>0 & 0xFF));
+    payload.push_back(static_cast<uint8_t>(ipaddr>>8 & 0xFF));
+    payload.push_back(static_cast<uint8_t>(ipaddr>>16 & 0xFF));
+    payload.push_back(static_cast<uint8_t>(ipaddr>>24 & 0xFF));
 
-    payload.push_back(static_cast<uint8_t>(subnet>>24 & 0xFF));
-    payload.push_back(static_cast<uint8_t>(subnet>>16 & 0xFF));
-    payload.push_back(static_cast<uint8_t>(subnet>>8 & 0xFF));
     payload.push_back(static_cast<uint8_t>(subnet>>0 & 0xFF));
+    payload.push_back(static_cast<uint8_t>(subnet>>8 & 0xFF));
+    payload.push_back(static_cast<uint8_t>(subnet>>16 & 0xFF));
+    payload.push_back(static_cast<uint8_t>(subnet>>24 & 0xFF));
 
-    payload.push_back(static_cast<uint8_t>(gwaddr>>24 & 0xFF));
-    payload.push_back(static_cast<uint8_t>(gwaddr>>16 & 0xFF));
-    payload.push_back(static_cast<uint8_t>(gwaddr>>8 & 0xFF));
     payload.push_back(static_cast<uint8_t>(gwaddr>>0 & 0xFF));
+    payload.push_back(static_cast<uint8_t>(gwaddr>>8 & 0xFF));
+    payload.push_back(static_cast<uint8_t>(gwaddr>>16 & 0xFF));
+    payload.push_back(static_cast<uint8_t>(gwaddr>>24 & 0xFF));
 
     tcpConnection.sendCommand(payload);
 }
