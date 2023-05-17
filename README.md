@@ -41,8 +41,8 @@ cvShow : Image Viewer on/off
 channel : 0 ~ 15
 
 hdr_mode 0 : HDR off
-hdr_mode 1 : Temperal HDR
-hdr_mode 2 : Spatial HDR
+hdr_mode 1 : Spatial HDR
+hdr_mode 2 : Temperal HDR
 
 imageType 0 : Grayscale 
 imageType 1 : Distance 
@@ -59,8 +59,7 @@ modIndex 0 : 24MHz
 modIndex 1 : 12MHz
 modIndex 2 : 6MHz
 modIndex 3 : 3MHz
-modIndex 4 : 1.5MHz
-modIndex 5 : 0.75MHz
+
 
 transformAngle : angle (rviz-based y-axis rotation)
 ```
