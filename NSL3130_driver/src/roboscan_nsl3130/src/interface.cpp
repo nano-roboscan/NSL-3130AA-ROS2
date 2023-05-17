@@ -4,6 +4,9 @@
 #include "interface.hpp"
 
 
+std::chrono::system_clock::time_point start;
+std::chrono::system_clock::time_point end;
+
 namespace nanosys {
 
 Interface::Interface() : tcpConnection(ioService),
@@ -11,8 +14,11 @@ Interface::Interface() : tcpConnection(ioService),
     isStreaming(0),
     dataType(0),
     currentFrame_id(0),
-    data(Packet(25+320*240*4*2))
+    data(Packet(25+320*240*4*2)),
+    currentFrameIdx(0),
+    frameRxCnt(0)
 {
+	rxFrame = NULL;
     serverThread.reset(new boost::thread(boost::bind(&boost::asio::io_service::run, &ioService)));
     udpServer.subscribe([&](const Packet& p) -> void
     {
@@ -22,26 +28,57 @@ Interface::Interface() : tcpConnection(ioService),
 
 		if( !isStreaming ) return;
 
-        if(packetNum == 0) { // new frame
-            uint16_t width  = (p[23] << 8) + p[24];
-            uint16_t height = (p[25] << 8) + p[26];
-            int payloadHeaderOffset = (p[43] << 8) + p[44];
+		if( packetNum == frameRxCnt ){
+	        if(packetNum == 0 ) { // new frame
+	            uint16_t width  = (p[23] << 8) + p[24];
+	            uint16_t height = (p[25] << 8) + p[26];
+	            int payloadHeaderOffset = (p[43] << 8) + p[44];
 
-            currentFrame = std::shared_ptr<Frame>(new Frame(dataType, currentFrame_id++, width, height, payloadHeaderOffset));
-            memcpy(&data[offset], &p[Frame::UDP_HEADER_OFFSET], payloadSize);
-            cameraInfoReady(getCameraInfo(p));
+//				start = std::chrono::system_clock::now();
+//				std::chrono::milliseconds timeCnt = std::chrono::duration_cast<std::chrono::milliseconds>(start-end);
+//				printf("start time = %ld ms\n", timeCnt.count());
 
-        }else if( currentFrame.use_count() > 0 ){
-            uint32_t numPackets = (p[12] << 24) + (p[13] << 16) + (p[14] << 8) + p[15];
-            memcpy(&data[offset], &p[Frame::UDP_HEADER_OFFSET], payloadSize);
+	            //currentFrame[currentFrameIdx] = std::shared_ptr<Frame>(new Frame(dataType, currentFrame_id++, width, height, payloadHeaderOffset));
+	            rxFrame = new Frame(dataType, currentFrame_id++, width, height, payloadHeaderOffset);
+	            memcpy(&data[offset], &p[Frame::UDP_HEADER_OFFSET], payloadSize);
+	            cameraInfoReady(getCameraInfo(p));
 
-            if (packetNum == numPackets - 1) { //last frame                                
-                currentFrame->sortData(data);  //copy data -> dist, ampl, dcs
-                frameReady(currentFrame);
-            }
-        }
+				frameRxCnt++;
+
+	        }else if( rxFrame != NULL ){
+	            uint32_t numPackets = (p[12] << 24) + (p[13] << 16) + (p[14] << 8) + p[15];
+	            memcpy(&data[offset], &p[Frame::UDP_HEADER_OFFSET], payloadSize);
+
+//				if( frameRxCnt != packetNum ){
+//					printf("error::frameRxCnt = %d packetNum = %d\n", frameRxCnt, packetNum);
+//				}
+
+				frameRxCnt++;
+
+	            if (packetNum == numPackets - 1) { //last frame                                
+	                rxFrame->sortData(data);  //copy data -> dist, ampl, dcs
+	                frameReady(rxFrame);
+					currentFrameIdx ^= 1;
+
+//					end = std::chrono::system_clock::now();
+//					std::chrono::milliseconds timeCnt = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+//					printf("end time = %ld ms\n", timeCnt.count());
+
+
+//					if( frameRxCnt != 220 )		printf("err frameRxCnt = %d\n", frameRxCnt);
+					frameRxCnt = 0;
+	            }
+	        }
+		}else{
+//			printf("frameRxCnt = %d packetNum = %d\n", frameRxCnt, packetNum);
+			frameRxCnt = 0;
+		}
     }); //end lambda function
-    
+	
+	usedTemporalFactor = 0;
+	usedTemporalThreshold = 0;
+	usedEdgeThreshold = 0;
+	filterSelector = 0;
 }
 
 Interface::~Interface() {
@@ -59,7 +96,7 @@ void Interface::stopStream() {
     insertValue(payload, command);
 
     tcpConnection.sendCommand(payload);
-    isStreaming = false;
+    isStreaming = 0;
 }
 
 void Interface::streamDCS()
@@ -69,7 +106,7 @@ void Interface::streamDCS()
 }
 
 void Interface::streamDistanceAmplitude() {
-    setDataType(Frame::AMPLITUDE);
+    setDataType(Frame::DISTANCE_AMPLITUDE);
     streamMeasurement(static_cast<uint8_t>(COMMAND_GET_DIST_AND_AMP));
 }
 
@@ -84,7 +121,7 @@ void Interface::streamGrayscale() {
 }
 
 void Interface::streamDistanceGrayscale() {
-    setDataType(Frame::DISTANCE_AND_GRAYSCALE);
+    setDataType(Frame::DISTANCE_GRAYSCALE);
     streamMeasurement(static_cast<uint8_t>(COMMAND_GET_DIST_AND_GRY));
 }
 
@@ -110,7 +147,7 @@ void Interface::setOffset(int32_t offset){
 }
 
 void Interface::setMinAmplitude(uint16_t minAmplitude){
-	
+
     std::vector<uint8_t> payload;
     uint16_t command = COMMAND_SET_MIN_AMPLITUDE;
 
@@ -162,14 +199,11 @@ void Interface::setIntegrationTime(uint16_t low, uint16_t mid, uint16_t high, ui
         high = 2500;
     }
 
-    if(grayMode == 1)
-    { 
-        gray = 2500;
-    }
-    else
-    { 
-        gray = 50000;
-    }
+	if( grayMode > 0 ){
+		if( gray > 10000 ){
+			gray /= 10;
+		}
+	}
 
     std::vector<uint8_t> payload;
     uint16_t command = COMMAND_SET_INT_TIMES;
@@ -205,6 +239,29 @@ void Interface::setHDRMode(uint8_t mode)
 }
 
 //add
+
+/*
+	0 : ¹Ì»ç¿ë 
+	1 : 6Mhz roll-over
+	2 : 3Mhz roll-over
+*/
+void Interface::setDualBeam(uint8_t mode)
+{
+    std::vector<uint8_t> payload;
+    uint16_t command = COMMAND_SET_DUALBEAM_MODE;
+	
+	//Insert the 16Bit command
+    insertValue(payload, command);
+    //insertValue(payload, mode);
+
+    payload.push_back(mode);
+
+    tcpConnection.sendCommand(payload);
+}
+
+
+
+
 void Interface::setGrayscaleIlluminationMode(uint8_t mode)
 {
     std::vector<uint8_t> payload;
@@ -267,21 +324,21 @@ void Interface::setDevIpAddress(uint32_t ipaddr, uint32_t subnet, uint32_t gwadd
     uint16_t command = COMMAND_SET_CAMERA_IP_SETTINGS;
 
     insertValue(payload, command);
-	
-    payload.push_back(static_cast<uint8_t>(ipaddr>>0 & 0xFF));
-    payload.push_back(static_cast<uint8_t>(ipaddr>>8 & 0xFF));
-    payload.push_back(static_cast<uint8_t>(ipaddr>>16 & 0xFF));
+
     payload.push_back(static_cast<uint8_t>(ipaddr>>24 & 0xFF));
+    payload.push_back(static_cast<uint8_t>(ipaddr>>16 & 0xFF));
+    payload.push_back(static_cast<uint8_t>(ipaddr>>8 & 0xFF));
+    payload.push_back(static_cast<uint8_t>(ipaddr>>0 & 0xFF));
 
-    payload.push_back(static_cast<uint8_t>(subnet>>0 & 0xFF));
-    payload.push_back(static_cast<uint8_t>(subnet>>8 & 0xFF));
-    payload.push_back(static_cast<uint8_t>(subnet>>16 & 0xFF));
     payload.push_back(static_cast<uint8_t>(subnet>>24 & 0xFF));
+    payload.push_back(static_cast<uint8_t>(subnet>>16 & 0xFF));
+    payload.push_back(static_cast<uint8_t>(subnet>>8 & 0xFF));
+    payload.push_back(static_cast<uint8_t>(subnet>>0 & 0xFF));
 
-    payload.push_back(static_cast<uint8_t>(gwaddr>>0 & 0xFF));
-    payload.push_back(static_cast<uint8_t>(gwaddr>>8 & 0xFF));
-    payload.push_back(static_cast<uint8_t>(gwaddr>>16 & 0xFF));
     payload.push_back(static_cast<uint8_t>(gwaddr>>24 & 0xFF));
+    payload.push_back(static_cast<uint8_t>(gwaddr>>16 & 0xFF));
+    payload.push_back(static_cast<uint8_t>(gwaddr>>8 & 0xFF));
+    payload.push_back(static_cast<uint8_t>(gwaddr>>0 & 0xFF));
 
     tcpConnection.sendCommand(payload);
 }
@@ -296,7 +353,8 @@ void Interface::getChipInfomation()
     tcpConnection.sendCommand(payload);
 }
 
-void Interface::setFilter(const bool medianFilter, const bool averageFilter, const uint16_t temporalFactor, const uint16_t temporalThreshold, const uint16_t edgeThreshold, const uint16_t temporalEdgeThresholdLow, const uint16_t temporalEdgeThresholdHigh, const uint16_t interferenceDetectionLimit, const bool interferenceDetectionUseLastValue)
+
+void Interface::setFilter(bool medianFilter, bool averageFilter, uint16_t temporalFactor, uint16_t temporalThreshold, uint16_t edgeThreshold, uint16_t temporalEdgeThresholdLow, uint16_t temporalEdgeThresholdHigh, uint16_t interferenceDetectionLimit, bool interferenceDetectionUseLastValue)
 {
     std::vector<uint8_t> payload;
     uint16_t command = COMMAND_SET_FILTER;
@@ -417,7 +475,7 @@ int8_t Interface::boolToInt8(const bool value)
     else        return 0;
 }
 
-boost::signals2::connection Interface::subscribeFrame(std::function<void (std::shared_ptr<Frame>)> onFrameReady)
+boost::signals2::connection Interface::subscribeFrame(std::function<void (Frame*)> onFrameReady)
 {
 	return frameReady.connect(onFrameReady);
 }

@@ -7,7 +7,6 @@
 #include "tcp_connection.hpp"
 #include "udp_server.hpp"
 
-//#define __CLIENT_FILTER__
 
 #define MASK_TEMPORAL_FILTER	0x01
 #define MASK_AVERAGE_FILTER		0x02
@@ -37,6 +36,7 @@ public:
   void setHDRMode(uint8_t mode);
   void setModulation(const uint8_t index, const uint8_t channel);
   void setFilter(bool medianFilter, bool averageFilter, uint16_t temporalFactor, uint16_t temporalThreshold, uint16_t edgeThreshold, uint16_t temporalEdgeThresholdLow, uint16_t temporalEdgeThresholdHigh, uint16_t interferenceDetectionLimit, bool interferenceDetectionUseLastValue);
+  void setDualBeam(uint8_t mode);
   void setGrayscaleIlluminationMode(uint8_t mode);
   void setAdcOverflowSaturation(uint8_t bAdcOverflow, uint8_t bSaturation);
   void setCompensation(uint8_t bDrnu, uint8_t bTemperature, uint8_t bGrayscale, uint8_t bAmbientLight);
@@ -47,7 +47,7 @@ public:
   void getDevIpaddress();
   void getTemperatureInfo();
 
-  boost::signals2::connection subscribeFrame(std::function<void (std::shared_ptr<Frame>)>);
+  boost::signals2::connection subscribeFrame(std::function<void (Frame *)>);
   boost::signals2::connection subscribeCameraInfo(std::function<void (std::shared_ptr<CameraInfo>)>);
   std::shared_ptr<CameraInfo> getCameraInfo(const Packet &);
 
@@ -76,14 +76,16 @@ private:
   const static uint16_t COMMAND_SET_CAMERA_IP_SETTINGS = 40;
   const static uint16_t COMMAND_GET_CAMERA_IP_ADDRESS = 48;
   const static uint16_t COMMAND_GET_TEMPERATURE = 52;
+  const static uint16_t COMMAND_SET_DUALBEAM_MODE = 62;
 
 
 
 
   std::shared_ptr<Frame> currentFrame[2];
+  Frame *rxFrame;
   boost::asio::io_service ioService;
   boost::scoped_ptr<boost::thread> serverThread;
-  boost::signals2::signal<void (std::shared_ptr<Frame>)> frameReady;
+  boost::signals2::signal<void (Frame *)> frameReady;
   boost::signals2::signal<void (std::shared_ptr<CameraInfo>)> cameraInfoReady;
   TcpConnection tcpConnection;
   UdpServer udpServer;

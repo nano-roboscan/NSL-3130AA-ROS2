@@ -24,9 +24,6 @@
 #include <cstdlib>
 #include <unistd.h>
 
-#define WIN_NAME "NSL-3130AA IMAGE"
-#define NUM_COLORS     		30000
-
 namespace nanosys {
 
 	struct SetParameter {
@@ -74,12 +71,12 @@ namespace nanosys {
         uint16_t temporalEdgeThresholdLow;
 		uint16_t temporalEdgeThresholdHigh;
 		uint16_t interferenceDetectionLimit;
-		bool useLastValue;
+		bool useLastValue = false;
 
 		uint32_t frameSeq;
-		bool cvShow;
-		bool setIp;
-		
+        uint16_t dualBeam;        
+		bool cvShow = false;
+		bool pointCloudEdgeFilter = false;
     };
 
    	typedef struct _RGB888Pixel
@@ -90,75 +87,76 @@ namespace nanosys {
 	} RGB888Pixel;
 
 
-class roboscanPublisher : public rclcpp::Node { 
+	class roboscanPublisher : public rclcpp::Node { 
 
-	static const int LOW_AMPLITUDE = 64001;
-	static const int ADC_OVERFLOW = 64002;
-	static const int SATURATION = 64003;
-	static const int BAD_PIXEL = 64004;
-	static const int INTERFERENCE = 64007;
-	static const int EDGE_FILTERED = 64008;
+		static const int PIXEL_VALID_DATA = 64000;
+		static const int LOW_AMPLITUDE = 64001;
+		static const int ADC_OVERFLOW = 64002;
+		static const int SATURATION = 64003;
+		static const int BAD_PIXEL = 64004;
+		static const int INTERFERENCE = 64007;
+		static const int EDGE_FILTERED = 64008;
 
-	const int width   = 320;
-	const int width2  = 160;
-	const int height  = 240;
-	const int height2 = 120;
-	const double sensorPixelSizeMM = 0.02; //camera sensor pixel size 20x20 um
+		const int width   = 320;
+		const int width2  = 160;
+		const int height  = 240;
+		const int height2 = 120;
+		const double sensorPixelSizeMM = 0.02; //camera sensor pixel size 20x20 um
+
+	public:
+		roboscanPublisher();
+		~roboscanPublisher();
+
+		void thread_callback();
+		double interpolate( double x, double x0, double y0, double x1, double y1);
+		void createColorMapPixel(int numSteps, int indx, unsigned char &red, unsigned char &green, unsigned char &blue);
+		int setDistanceColor(cv::Mat &imageLidar, int x, int y, int value );
+		void setReconfigure();
+		void publishFrame(Frame *frame);
+		void updateFrame(Frame *frame);
+		bool edgeDetection(Triple const& v0, Triple const& v1, Triple const& v2, double threshold, double distanceLimit);
+		void setGrayscaleColor(cv::Mat &imageLidar, int x, int y, int value, double end_range );
+		void setAmplitudeColor(cv::Mat &imageLidar, int x, int y, int value, double end_range );
+		void startStreaming();
+
+		boost::signals2::connection connectionFrames;
+		boost::signals2::connection connectionCameraInfo;
+
+		std::vector<cv::Vec3b> colorVector;
+		
+
+		Interface interface;
+		CartesianTransform cartesianTransform;
+		sensor_msgs::msg::CameraInfo cameraInfo;
 
 
+		//static rclcpp::Time timeNow;
 
-public:
-	roboscanPublisher();
-	~roboscanPublisher();
+		rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr imgDistancePub;
+		rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr imgAmplPub;
+		rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr imgGrayPub;
+		rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr imgDCSPub;	
+		rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pointcloudPub;
 
+		int Convert_To_RGB24( float fValue, RGB888Pixel *nRGBData, float fMinValue, float fMaxValue);
 
-	void thread_callback();
-	void setReconfigure();
-	void updateFrame(std::shared_ptr<Frame> frame);
-	void getGrayscaleColor(cv::Mat &imageLidar, int x, int y, int value, double end_range );
-	void setAmplitudeColor(cv::Mat &imageLidar, int x, int y, int value, double end_range );
-	void startStreaming();	
-	double interpolate( double x, double x0, double y0, double x1, double y1);
-	void createColorMapPixel(int numSteps, int indx, unsigned char &red, unsigned char &green, unsigned char &blue);
-
-	boost::signals2::connection connectionFrames;
-	boost::signals2::connection connectionCameraInfo;
-
-	//rclcpp::Service<sensor_msgs::srv::SetCameraInfo>::SharedPtr cameraInfoService;
-
-	Interface interface;
-	CartesianTransform cartesianTransform;
-	sensor_msgs::msg::CameraInfo cameraInfo;
-
-
-	//static rclcpp::Time timeNow;
-
-	rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr imgDistancePub;
-	rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr imgAmplPub;
-	rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr imgGrayPub;
-	rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr imgDCSPub;	
-	rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pointcloudPub;
-
-	int Convert_To_RGB24( float fValue, RGB888Pixel *nRGBData, float fMinValue, float fMaxValue);
-
-    SetParameter lidarParam;
-	std::vector<cv::Vec3b> colorVector;
-	boost::scoped_ptr<boost::thread> publisherThread;
-	bool runThread;
-	
-
-private:
-	void initialise();
-	void setParameters();
-	void updateCameraInfo(std::shared_ptr<CameraInfo> ci);
-	bool setCameraInfo(sensor_msgs::srv::SetCameraInfo::Request& req, sensor_msgs::srv::SetCameraInfo::Response& res);
-	OnSetParametersCallbackHandle::SharedPtr callback_handle_;
-	rcl_interfaces::msg::SetParametersResult parametersCallback( const std::vector<rclcpp::Parameter> &parameters);
-	void getMouseEvent( int &mouse_xpos, int &mouse_ypos );
-	cv::Mat addDistanceInfo(cv::Mat distMat, std::vector<uint16_t> dist2BData, int width);
-	int mouseXpos, mouseYpos;
-
-};
+	    SetParameter lidarParam;
+		float maxDistance;
+		std::vector<Frame *> backupFrame;
+		boost::scoped_ptr<boost::thread> publisherThread;
+		bool runThread;
+	private:
+		void initialise();
+		void setParameters();
+		void updateCameraInfo(std::shared_ptr<CameraInfo> ci);
+		bool setCameraInfo(sensor_msgs::srv::SetCameraInfo::Request& req, sensor_msgs::srv::SetCameraInfo::Response& res);
+		void getMouseEvent( int &mouse_xpos, int &mouse_ypos );
+		cv::Mat addDistanceInfo(cv::Mat distMat, std::vector<uint16_t> dist2BData, int width);
+		OnSetParametersCallbackHandle::SharedPtr callback_handle_;
+		rcl_interfaces::msg::SetParametersResult parametersCallback( const std::vector<rclcpp::Parameter> &parameters);
+		int mouseXpos, mouseYpos;
+		bool reconfigure;
+	};
 
 
 } //end namespace nanosys

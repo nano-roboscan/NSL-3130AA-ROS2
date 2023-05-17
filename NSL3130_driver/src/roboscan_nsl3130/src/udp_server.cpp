@@ -10,6 +10,9 @@ namespace nanosys {
 UdpServer::UdpServer(boost::asio::io_service& ios) :
   socket(ios, udp::endpoint(udp::v4(), PORT)),
   recvBuffer(Packet(RECV_BUFF_SIZE)) {
+
+  socket.set_option(udp::socket::receive_buffer_size(165000));
+
   startReceive();  
 }
 
@@ -26,7 +29,6 @@ boost::signals2::connection UdpServer::subscribe(std::function<void(Packet &)> o
 }
 
 void UdpServer::startReceive() {
-//  socket.set_option(udp::socket::receive_buffer_size(165000));
   socket.async_receive_from(boost::asio::buffer(recvBuffer), remoteEndpoint,
          boost::bind(&UdpServer::handleReceive, this, boost::asio::placeholders::error,boost::asio::placeholders::bytes_transferred));
 }
