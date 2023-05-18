@@ -25,7 +25,7 @@ find_package(rviz_common REQUIRED)
 find_package(rviz_ogre_vendor REQUIRED)
 find_package(cv_bridge)
 
-find_package(image_transport)
+find_package(image_transport REQUIRED)
 find_package(nav_msgs)
 find_package(std_msgs)
 
@@ -68,6 +68,7 @@ ament_target_dependencies(roboscan_publish_node
   pcl_conversions
   Eigen3
   OpenCV
+  image_transport
 )
 
 target_link_libraries(roboscan_publish_node 

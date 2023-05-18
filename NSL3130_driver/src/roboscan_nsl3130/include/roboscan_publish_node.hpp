@@ -24,15 +24,15 @@
 #include <cstdlib>
 #include <unistd.h>
 
+//#define image_transfer_function
+
+#ifdef image_transfer_function
+#include <image_transport/image_transport.h>
+#endif
+
 namespace nanosys {
 
 	struct SetParameter {
-		std::string	ipAddr;
-		std::string	ipSub;
-		std::string	ipGw;
-	    uint32_t ipv4_addr;
-		uint32_t ipv4_sub;
-		uint32_t ipv4_gw;
 	
         uint16_t imageType;
         uint16_t lensType;
@@ -57,7 +57,7 @@ namespace nanosys {
 		uint16_t roi_rightX = 319;
 		uint16_t roi_bottomY = 239;
 
-		uint8_t grayscaleIlluminationMode = 0;
+		bool grayscaleIlluminationMode = false;
 		uint8_t bAdcOverflow = 1;
 		uint8_t bSaturation = 1;
 		double transformAngle;
@@ -76,7 +76,15 @@ namespace nanosys {
 		uint32_t frameSeq;
         uint16_t dualBeam;        
 		bool cvShow = false;
+		bool changedCvShow = true;
 		bool pointCloudEdgeFilter = false;
+
+		std::string	ipAddr;
+		std::string	netMask;
+		std::string	gwAddr;
+		bool changedIpInfo = false;
+
+		int maxDistance;
     };
 
    	typedef struct _RGB888Pixel
@@ -138,10 +146,15 @@ namespace nanosys {
 		rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr imgDCSPub;	
 		rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pointcloudPub;
 
-		int Convert_To_RGB24( float fValue, RGB888Pixel *nRGBData, float fMinValue, float fMaxValue);
+#ifdef image_transfer_function
+		rclcpp::Node::SharedPtr nodeHandle;
+		image_transport::ImageTransport imageTransport;
+		image_transport::Publisher imagePublisher;
+#endif
+		int Convert_To_RGB24( float fValue, RGB888Pixel &nRGBData, float fMinValue, float fMaxValue);
 
 	    SetParameter lidarParam;
-		float maxDistance;
+
 		std::vector<Frame *> backupFrame;
 		boost::scoped_ptr<boost::thread> publisherThread;
 		bool runThread;
@@ -151,11 +164,14 @@ namespace nanosys {
 		void updateCameraInfo(std::shared_ptr<CameraInfo> ci);
 		bool setCameraInfo(sensor_msgs::srv::SetCameraInfo::Request& req, sensor_msgs::srv::SetCameraInfo::Response& res);
 		void getMouseEvent( int &mouse_xpos, int &mouse_ypos );
-		cv::Mat addDistanceInfo(cv::Mat distMat, std::vector<uint16_t> dist2BData, int width);
+		cv::Mat addDistanceInfo(cv::Mat distMat, Frame *frame);
+		cv::Mat addDCSInfo(cv::Mat distMat, Frame *frame);
+		void setWinName();
 		OnSetParametersCallbackHandle::SharedPtr callback_handle_;
 		rcl_interfaces::msg::SetParametersResult parametersCallback( const std::vector<rclcpp::Parameter> &parameters);
 		int mouseXpos, mouseYpos;
 		bool reconfigure;
+		char winName[100];
 	};
 
 

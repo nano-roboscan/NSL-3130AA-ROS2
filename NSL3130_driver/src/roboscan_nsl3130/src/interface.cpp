@@ -87,6 +87,41 @@ Interface::~Interface() {
     ioService.stop();
 }
 
+uint32_t Interface::ip2int(const char * ip)
+{
+    unsigned v = 0;
+    int i;
+    const char * start;
+
+    start = ip;
+    for (i = 0; i < 4; i++) {
+        char c;
+        int n = 0;
+        while (1) {
+            c = * start;
+            start++;
+            if (c >= '0' && c <= '9') {
+                n *= 10;
+                n += c - '0';
+            }
+            else if ((i < 3 && c == '.') || i == 3) {
+                break;
+            }
+            else {
+                return 0;
+            }
+        }
+        if (n >= 256) {
+            return 0;
+        }
+		
+        v *= 256;
+        v += n;
+    }
+	
+    return v;
+}
+
 void Interface::stopStream() {
     if (!isStreaming) { return; }
 
@@ -184,7 +219,7 @@ void Interface::setRoi(const uint16_t x0, const uint16_t y0, const uint16_t x1, 
 }
 
 
-void Interface::setIntegrationTime(uint16_t low, uint16_t mid, uint16_t high, uint16_t gray, uint8_t grayMode)
+void Interface::setIntegrationTime(uint16_t low, uint16_t mid, uint16_t high, uint16_t gray, bool grayMode)
 {
     if(low > 2500)
     {  
@@ -262,15 +297,16 @@ void Interface::setDualBeam(uint8_t mode)
 
 
 
-void Interface::setGrayscaleIlluminationMode(uint8_t mode)
+void Interface::setGrayscaleIlluminationMode(bool mode)
 {
     std::vector<uint8_t> payload;
     uint16_t command = COMMAND_SET_GRAYSCALE_ILLUMINATION;
-
+	uint8_t modeLed = mode ? 1 : 0;
+	
     insertValue(payload, command);
     //insertValue(payload, mode);
 
-    payload.push_back(mode);
+    payload.push_back(modeLed);
 
     tcpConnection.sendCommand(payload);
 }
@@ -317,6 +353,18 @@ void Interface::setDataIpAddress(uint32_t dataIpaddr)
 
     tcpConnection.sendCommand(payload);
 }
+
+
+void Interface::setIpAddr(std::string ipAddr, std::string netmask, std::string gwAddr)
+{
+	std::ignore = netmask;
+	std::ignore = gwAddr;
+	
+	tcpConnection.setIpAddr(ipAddr);
+
+//	if(tcpConnection.isConnected() ) setDevIpAddress(ip2int(ipAddr.c_str()), ip2int(netmask.c_str()), ip2int(gwAddr.c_str()));
+}
+
 
 void Interface::setDevIpAddress(uint32_t ipaddr, uint32_t subnet, uint32_t gwaddr)
 {
