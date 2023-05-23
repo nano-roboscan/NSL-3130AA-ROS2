@@ -36,7 +36,7 @@ public:
   void setHDRMode(uint8_t mode);
   void setModulation(const uint8_t index, const uint8_t channel);
   void setFilter(bool medianFilter, bool averageFilter, uint16_t temporalFactor, uint16_t temporalThreshold, uint16_t edgeThreshold, uint16_t temporalEdgeThresholdLow, uint16_t temporalEdgeThresholdHigh, uint16_t interferenceDetectionLimit, bool interferenceDetectionUseLastValue);
-  void setDualBeam(uint8_t mode);
+  void setDualBeam(uint8_t mode, bool usedDualbeamDist);
   void setGrayscaleIlluminationMode(bool mode);
   void setAdcOverflowSaturation(uint8_t bAdcOverflow, uint8_t bSaturation);
   void setCompensation(uint8_t bDrnu, uint8_t bTemperature, uint8_t bGrayscale, uint8_t bAmbientLight);

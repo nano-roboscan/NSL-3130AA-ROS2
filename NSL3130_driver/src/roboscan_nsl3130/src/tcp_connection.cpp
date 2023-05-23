@@ -23,10 +23,9 @@ TcpConnection::~TcpConnection() {
 
 void TcpConnection::setIpAddr(std::string ipAddr)
 {
-    disconnect();
+	disconnect();
 	strcpy(HOST, ipAddr.c_str());
 	connect();
-
 }
 
 void TcpConnection::sendCommand(const std::vector<uint8_t>& data) {

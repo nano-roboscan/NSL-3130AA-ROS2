@@ -59,9 +59,9 @@ static void callback_mouse_click(int event, int x, int y, int flags, void* user_
 roboscanPublisher::roboscanPublisher() : 
 	Node("roboscan_publish_node")
 #ifdef image_transfer_function
-	,nodeHandle(std::shared_ptr<roboscanPublisher>(this, [](auto *) {})),
-	imageTransport(nodeHandle),
-	imagePublisher(imageTransport.advertise("roboscanImage", 1000))
+	,nodeHandle(std::shared_ptr<roboscanPublisher>(this, [](auto *) {}))
+	,imageTransport(nodeHandle)
+	,imagePublisher(imageTransport.advertise("roboscanImage", 1000))
 #endif	
 { 
     auto qos_profile = rclcpp::QoS(rclcpp::KeepLast(10));
@@ -395,7 +395,7 @@ void roboscanPublisher::setReconfigure()
 
 	interface.setAdcOverflowSaturation(lidarParam.bAdcOverflow, lidarParam.bSaturation);
 	interface.setGrayscaleIlluminationMode(lidarParam.grayscaleIlluminationMode);
-	interface.setDualBeam(lidarParam.dualBeam);
+	interface.setDualBeam(lidarParam.dualBeam, true);
 
 	if(lidarParam.frequencyModulation == 0) lidarParam.modIndex = 1;
 	else if(lidarParam.frequencyModulation == 1)  lidarParam.modIndex = 0;
@@ -643,7 +643,7 @@ void roboscanPublisher::setParameters()
 
 	interface.setAdcOverflowSaturation(lidarParam.bAdcOverflow, lidarParam.bSaturation);
 	interface.setGrayscaleIlluminationMode(lidarParam.grayscaleIlluminationMode);
-	interface.setDualBeam(lidarParam.dualBeam);
+	interface.setDualBeam(lidarParam.dualBeam, true);
 
 	if(lidarParam.frequencyModulation == 0) lidarParam.modIndex = 1;
 	else if(lidarParam.frequencyModulation == 1)  lidarParam.modIndex = 0;

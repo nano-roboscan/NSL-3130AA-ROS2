@@ -280,16 +280,18 @@ void Interface::setHDRMode(uint8_t mode)
 	1 : 6Mhz roll-over
 	2 : 3Mhz roll-over
 */
-void Interface::setDualBeam(uint8_t mode)
+void Interface::setDualBeam(uint8_t mode, bool usedDualbeamDist)
 {
     std::vector<uint8_t> payload;
     uint16_t command = COMMAND_SET_DUALBEAM_MODE;
 	
+	uint8_t usedDualBeamDistance = usedDualbeamDist ? 1 : 0;
 	//Insert the 16Bit command
     insertValue(payload, command);
     //insertValue(payload, mode);
 
     payload.push_back(mode);
+    payload.push_back(usedDualBeamDistance);
 
     tcpConnection.sendCommand(payload);
 }
