@@ -27,7 +27,7 @@ $ ros2 launch roboscan_nsl3130 camera.Launch.py
 
 # Rollover Avoidance and Correction
 
-  ![rollover](https://github.com/nano-roboscan/NSL-3130AA-ROS2/assets/106071093/b5f34e59-3226-427c-902c-7852bb592c55)
+  ![rollover](https://github.com/nano-roboscan/NSL-3130AA-ROS2/assets/106071093/c54d9424-cd68-401b-8816-aad6788c9e2f)
 
 # Set parameters
 ```
