@@ -26,7 +26,7 @@ $ ros2 launch roboscan_nsl3130 camera.Launch.py
 
 # Rollover Avoidance and Correction
 
-  ![rollover](https://github.com/nano-roboscan/NSL-3130AA-ROS2/assets/106071093/0f680954-ee4b-425b-a5c4-487570f4f942)
+  ![rollover](https://github.com/nano-roboscan/NSL-3130AA-ROS2/assets/106071093/3d30e77f-0b82-48d1-be3e-2ca3455a9bba)
 
 # Average FPS per Image type
 
