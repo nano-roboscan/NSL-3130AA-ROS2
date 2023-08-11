@@ -998,7 +998,7 @@ cv::Mat roboscanPublisher::addDistanceInfo(cv::Mat distMat, Frame *frame)
 
 		std::string dist_caption;
 
-		int real_xpos = frame->width - 1 - xpos;
+		int real_xpos = xpos;
 		int real_dist = frame->dist2BData[ypos*frame->width + real_xpos];
 		if( real_dist > PIXEL_VALID_DATA ){
 
@@ -1056,7 +1056,7 @@ cv::Mat roboscanPublisher::addDCSInfo(cv::Mat distMat, Frame *frame)
 
 		std::string dist_caption;
 
-		int real_xpos = frame->width - 1 - xpos;
+		int real_xpos = xpos;
 		int real_dist = frame->dcs2BData[ypos*frame->width + real_xpos];
 		if( real_dist > PIXEL_VALID_DATA ){
 
@@ -1201,7 +1201,7 @@ void roboscanPublisher::publishFrame(Frame *frame)
 
 		int frameSize = frame->width * frame->height * 2;
 		for(k=0, l=0, y=0; y< frame->height; y++){
-			for(x=frame->width-1; x >= 0; x--, k++, l+=2){
+			for(x=0; x < frame->width; x++, k++, l+=2){
 				dcsData1 = (frame->dcsData[l+1] << 8)	+ frame->dcsData[l];
 				dcsData2 = (frame->dcsData[l+1+frameSize] << 8)	+ frame->dcsData[l+frameSize];
 				dcsData3 = (frame->dcsData[l+1+frameSize*2] << 8)	+ frame->dcsData[l+frameSize*2];
@@ -1234,7 +1234,7 @@ void roboscanPublisher::publishFrame(Frame *frame)
 
 		for(k=0, l=0, y=0; y< frame->height; y++)
 		{
-			for(x=frame->width-1, pc = 0; x >= 0; x--, k++, l+=2, pc++)
+			for(x=0, pc = 0; x < frame->width; x++, k++, l+=2, pc++)
 			{
 				pcl::PointXYZI &p = cloud->points[k];
 
