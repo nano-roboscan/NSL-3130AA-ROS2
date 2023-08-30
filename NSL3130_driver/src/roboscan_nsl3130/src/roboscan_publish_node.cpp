@@ -1234,7 +1234,7 @@ void roboscanPublisher::publishFrame(Frame *frame)
 
 		for(k=0, l=0, y=0; y< frame->height; y++)
 		{
-			for(x=0, pc = 0; x < frame->width; x++, k++, l+=2, pc++)
+			for(x=0, pc = frame->width-1; x < frame->width; x++, k++, l+=2, pc--)
 			{
 				pcl::PointXYZI &p = cloud->points[k];
 
