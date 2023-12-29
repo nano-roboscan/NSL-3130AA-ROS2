@@ -24,7 +24,7 @@
 #include <cstdlib>
 #include <unistd.h>
 
-//#define image_transfer_function
+#define image_transfer_function
 
 #ifdef image_transfer_function
 #include <image_transport/image_transport.h>

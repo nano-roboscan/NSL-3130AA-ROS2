@@ -470,18 +470,18 @@ void roboscanPublisher::initialise()
 	lidarParam.startStream = false;
 	lidarParam.imageType = 2; 
 	lidarParam.hdr_mode = 0; //0 - hdr off, 1 - hdr spatial, 2 - hdr temporal
-	lidarParam.int0 = 800;
+	lidarParam.int0 = 1500;
 	lidarParam.int1 = 100;
 	lidarParam.int2 = 50;
 	lidarParam.intGr = 100; //integration times
-	lidarParam.frequencyModulation = 1;
+	lidarParam.frequencyModulation = 0;
 	lidarParam.modIndex = 0;
 	lidarParam.channel = 0;
 	lidarParam.minAmplitude = 100;
 	lidarParam.medianFilter = false;
 	lidarParam.averageFilter = false;
-	lidarParam.temporalFilterFactor = 0;
-	lidarParam.temporalFilterThreshold = 0;
+	lidarParam.temporalFilterFactor = 0.3;
+	lidarParam.temporalFilterThreshold = 200;
 	lidarParam.edgeFilterThreshold = 0;
 	lidarParam.temporalEdgeThresholdLow = 0;
 	lidarParam.temporalEdgeThresholdHigh = 0;
@@ -499,6 +499,7 @@ void roboscanPublisher::initialise()
 
 	lidarParam.cvShow = false;
 	lidarParam.pointCloudEdgeFilter = false;
+	lidarParam.dualBeam = 2;
 
 	lidarParam.ipAddr = "192.168.0.220";
 	lidarParam.netMask = "255.255.255.0";
