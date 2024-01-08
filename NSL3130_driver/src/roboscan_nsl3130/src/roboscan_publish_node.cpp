@@ -1328,9 +1328,9 @@ void roboscanPublisher::publishFrame(Frame *frame)
 
 							if( d1>0 && d1<lidarParam.maxDistance && d2>0 && d2<lidarParam.maxDistance && d3>0 && d3<lidarParam.maxDistance ){
 								Triple v0, v1, v2;
-								cartesianTransform.transformPixel(pc, y, d1, v0.x, v0.y, v0.z, lidarParam.transformAngle);
-								cartesianTransform.transformPixel(pc+1, y, d2, v1.x, v1.y, v1.z, lidarParam.transformAngle);
-								cartesianTransform.transformPixel(pc, y+1, d3, v2.x, v2.y, v2.z, lidarParam.transformAngle);
+								cartesianTransform.transformPixel(pc, y+lidarParam.roi_topY, d1, v0.x, v0.y, v0.z, lidarParam.transformAngle);
+								cartesianTransform.transformPixel(pc+1, y+lidarParam.roi_topY, d2, v1.x, v1.y, v1.z, lidarParam.transformAngle);
+								cartesianTransform.transformPixel(pc, y+1+lidarParam.roi_topY, d3, v2.x, v2.y, v2.z, lidarParam.transformAngle);
 
 								if(edgeDetection(v0, v1, v2, 0.2, 30)){
 									p.x = std::numeric_limits<float>::quiet_NaN();
