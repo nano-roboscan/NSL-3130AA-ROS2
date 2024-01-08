@@ -35,6 +35,16 @@ using namespace std;
 #define  MAX_LEVELS  9
 #define NUM_COLORS     		30000
 
+#define LEFTX_MAX	124	
+#define RIGHTX_MIN	131
+#define RIGHTX_MAX	319	
+#define X_INTERVAL	4
+
+#define LEFTY_MAX	116	
+#define RIGHTY_MIN	123
+#define RIGHTY_MAX	239	
+#define Y_INTERVAL	2
+
 std::atomic<int> x_start = -1, y_start = -1;
 
 
@@ -250,19 +260,48 @@ rcl_interfaces::msg::SetParametersResult roboscanPublisher::parametersCallback( 
 		}
 		else if (param.get_name() == "L. roi_leftX")
 		{
-			lidarParam.roi_leftX = param.as_int();
-		}
-		else if (param.get_name() == "M. roi_topY")
-		{
-			lidarParam.roi_topY = param.as_int();
+			int x1_tmp = param.as_int();
+
+			if(x1_tmp % X_INTERVAL ) x1_tmp+=X_INTERVAL-(x1_tmp % X_INTERVAL );
+			if(x1_tmp > LEFTX_MAX ) x1_tmp = LEFTX_MAX;
+
+			lidarParam.roi_leftX = x1_tmp;
+
 		}
 		else if (param.get_name() == "N. roi_rightX")
 		{
-			lidarParam.roi_rightX = param.as_int();
+			int x2_tmp = param.as_int();
+			
+			if((x2_tmp-RIGHTX_MIN) % X_INTERVAL)	x2_tmp-=((x2_tmp-RIGHTX_MIN) % X_INTERVAL);
+			if(x2_tmp < RIGHTX_MIN ) x2_tmp = RIGHTX_MIN;
+			if(x2_tmp > RIGHTX_MAX ) x2_tmp = RIGHTX_MAX;
+			
+			lidarParam.roi_rightX = x2_tmp;
+		}
+		else if (param.get_name() == "M. roi_topY")
+		{
+			int y1_tmp = param.as_int();
+			
+			if(y1_tmp % Y_INTERVAL )	y1_tmp++;
+			if(y1_tmp > LEFTY_MAX ) y1_tmp = LEFTY_MAX;
+			
+			lidarParam.roi_topY = y1_tmp;
+			
+			int y2_tmp = RIGHTY_MAX - y1_tmp;
+			lidarParam.roi_bottomY = y2_tmp;
 		}
 		else if (param.get_name() == "O. roi_bottomY")
 		{
-			lidarParam.roi_bottomY = param.as_int();
+			int y2_tmp = param.as_int();
+			
+			if(y2_tmp % Y_INTERVAL == 0 )	y2_tmp++;
+			if(y2_tmp < RIGHTY_MIN ) y2_tmp = RIGHTY_MIN;
+			if(y2_tmp > RIGHTY_MAX ) y2_tmp = RIGHTY_MAX;
+			
+			lidarParam.roi_bottomY = y2_tmp;
+			
+			int y1_tmp = RIGHTY_MAX - y2_tmp;
+			lidarParam.roi_topY = y1_tmp;
 		}
 		else if (param.get_name() == "P. transformAngle")
 		{
@@ -526,7 +565,7 @@ void roboscanPublisher::initialise()
 	rclcpp::Parameter pRoi_leftX("L. roi_leftX", lidarParam.roi_leftX);
 	rclcpp::Parameter pRoi_topY("M. roi_topY", lidarParam.roi_topY);
 	rclcpp::Parameter pRoi_rightX("N. roi_rightX", lidarParam.roi_rightX);
-	rclcpp::Parameter pRoi_bottomY("O. roi_bottomY", lidarParam.roi_bottomY);
+	//rclcpp::Parameter pRoi_bottomY("O. roi_bottomY", lidarParam.roi_bottomY);
 	rclcpp::Parameter pTransformAngle("P. transformAngle", lidarParam.transformAngle);
 	rclcpp::Parameter pCutpixels("Q. cutPixels", lidarParam.cutPixels);
 	rclcpp::Parameter pMedianFilter("R. medianFilter", lidarParam.medianFilter);
@@ -562,7 +601,7 @@ void roboscanPublisher::initialise()
 	this->declare_parameter<int>("L. roi_leftX", lidarParam.roi_leftX);
 	this->declare_parameter<int>("M. roi_topY", lidarParam.roi_topY);
 	this->declare_parameter<int>("N. roi_rightX", lidarParam.roi_rightX);
-	this->declare_parameter<int>("O. roi_bottomY", lidarParam.roi_bottomY);
+//	this->declare_parameter<int>("O. roi_bottomY", lidarParam.roi_bottomY);
 	this->declare_parameter<double>("P. transformAngle", lidarParam.transformAngle);
 	this->declare_parameter<int>("Q. cutPixels", lidarParam.transformAngle);
 	this->declare_parameter<bool>("R. medianFilter", lidarParam.medianFilter);
@@ -598,7 +637,7 @@ void roboscanPublisher::initialise()
 	this->set_parameter(pRoi_leftX);
 	this->set_parameter(pRoi_topY);
 	this->set_parameter(pRoi_rightX);
-	this->set_parameter(pRoi_bottomY);
+//	this->set_parameter(pRoi_bottomY);
 	this->set_parameter(pTransformAngle);
 	this->set_parameter(pCutpixels);
 	this->set_parameter(pMedianFilter);
@@ -1303,7 +1342,7 @@ void roboscanPublisher::publishFrame(Frame *frame)
 							}
 						}
 					
-						cartesianTransform.transformPixel(pc, y, distance, px, py, pz, lidarParam.transformAngle);
+						cartesianTransform.transformPixel(pc, y+lidarParam.roi_topY, distance, px, py, pz, lidarParam.transformAngle);
 						p.x = static_cast<float>(pz / 1000.0); //mm -> m
 						p.y = static_cast<float>(px / 1000.0);
 						p.z = static_cast<float>(-py / 1000.0);
@@ -1359,7 +1398,7 @@ void roboscanPublisher::publishFrame(Frame *frame)
 		cv::hconcat(dcs1, dcs3, dcs1);
 		dcs1 = addDistanceInfo(dcs1, frame);
 	}
-	if( frame->dataType == Frame::GRAYSCALE ){
+	else if( frame->dataType == Frame::GRAYSCALE ){
 		dcs1 = addDistanceInfo(dcs3, frame);
 	}
 	else if(frame->dataType == Frame::DCS){
