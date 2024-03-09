@@ -24,7 +24,7 @@ $ ros2 launch roboscan_nsl3130 camera.Launch.py
 
   ![ROS2](https://user-images.githubusercontent.com/106071093/218378867-6792ac7b-4b2f-4227-9fa3-ef833f0fc784.png)
 
-# Rollover Avoidance and Correction
+# Phase wrapping Avoidance and Correction
 
   ![rollover](https://github.com/nano-roboscan/NSL-3130AA-ROS2/assets/106071093/3d30e77f-0b82-48d1-be3e-2ca3455a9bba)
   ![roll-over-gif2](https://github.com/nano-roboscan/NSL-3130AA-ROS2/assets/106071093/b3a04a07-6822-4076-8dc5-69eed91bc935)
