@@ -2,7 +2,7 @@
 --- NSL-3130AA ROS2 demo ---
 
 1. Build env
- - Ubuntu22.04.1 LTS
+ - Ubuntu22.04.5 LTS
  - ROS2 Humble
  - OPENCV 4.5.4
  
@@ -16,7 +16,6 @@ $ . install/setup.bash
  
 3. Start commands
 ```
-$ ros2 run roboscan_nsl3130 roboscan_publish_node
 $ ros2 launch roboscan_nsl3130 camera.Launch.py
 ```
 
@@ -72,8 +71,13 @@ modIndex 3 : 3MHz
 transformAngle : angle (rviz-based y-axis rotation)
 ```
 
- 
+ # Warning Area
 
+![Area](https://github.com/user-attachments/assets/daa38bf9-88fe-4088-939f-fdec43ee77c0)
+
+# Set Area parameters
+
+![Area parameters](https://github.com/user-attachments/assets/e274dad1-6cf5-4119-a3b6-10e22b473dc0)
 
 
  
