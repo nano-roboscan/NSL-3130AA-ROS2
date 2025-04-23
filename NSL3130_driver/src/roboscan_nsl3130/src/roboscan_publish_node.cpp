@@ -3,12 +3,16 @@
 #include "interface.hpp"
 #include <chrono>
 #include <functional>
+#include <future>
+#include <filesystem>
 #include <memory>
 #include <string>
+#include <fstream>
+#include <filesystem>
 #include "rclcpp/rclcpp.hpp"
 #include "std_msgs/msg/string.hpp"
 #include <sensor_msgs/msg/point_cloud2.hpp>
-#include <pcl_conversions/pcl_conversions.h>
+#include <pcl_conversions/pcl_conversions.h> 
 #include <opencv2/opencv.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/core/core.hpp>
@@ -17,13 +21,15 @@
 #include <cv_bridge/cv_bridge.h>
 //#include <pcl/conversions.h>
 //#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+#include "roboscan_nsl3130/msg/custom_msg.hpp"
+#include <ament_index_cpp/get_package_share_directory.hpp>
 #include <sensor_msgs/msg/camera_info.hpp>
 #include <sensor_msgs/srv/set_camera_info.hpp>
 #include <cstdio>
 #include <sys/stat.h>
 #include <cstdlib>
 #include <unistd.h>
-
+#include "yaml-cpp/yaml.h"
 #include "roboscan_publish_node.hpp"
 
 using namespace nanosys;
@@ -47,6 +53,7 @@ using namespace std;
 
 std::atomic<int> x_start = -1, y_start = -1;
 
+std::future<void> result;
 
 static void callback_mouse_click(int event, int x, int y, int flags, void* user_data)
 {
@@ -74,6 +81,7 @@ roboscanPublisher::roboscanPublisher() :
 	,imagePublisher(imageTransport.advertise("roboscanImage", 1000))
 #endif	
 { 
+	lidarParam.publishName = "roboscan_frame";
     auto qos_profile = rclcpp::QoS(rclcpp::KeepLast(10));
 
     imgDistancePub = this->create_publisher<sensor_msgs::msg::Image>("roboscanDistance", qos_profile); 
@@ -81,8 +89,13 @@ roboscanPublisher::roboscanPublisher() :
     imgGrayPub = this->create_publisher<sensor_msgs::msg::Image>("roboscanGray", qos_profile); 
     imgDCSPub = this->create_publisher<sensor_msgs::msg::Image>("roboscanDCS", qos_profile); 
     pointcloudPub = this->create_publisher<sensor_msgs::msg::PointCloud2>("roboscanPointCloud", qos_profile); 
+	area0Pub = this->create_publisher<visualization_msgs::msg::Marker>("area0", qos_profile);
+	area1Pub = this->create_publisher<visualization_msgs::msg::Marker>("area1", qos_profile);
+	area2Pub = this->create_publisher<visualization_msgs::msg::Marker>("area2", qos_profile);
+	area3Pub = this->create_publisher<visualization_msgs::msg::Marker>("area3", qos_profile);
+	areaMsgpub = this->create_publisher<roboscan_nsl3130::msg::CustomMsg>("areaMsg", qos_profile);
 
-
+	
 
     printf("Init...\n");
     roboscanPublisher::initialise();
@@ -104,14 +117,17 @@ roboscanPublisher::roboscanPublisher() :
 	mouseYpos = -1;
 	runThread = true;
     publisherThread.reset(new boost::thread(boost::bind(&roboscanPublisher::thread_callback, this)));
-    printf("\nRun rqt to view the image!\n");
-    
+	
+	
+    printf("\nRun rqt to view the image!\n");    
 } 
 
 roboscanPublisher::~roboscanPublisher()
 {
+
 	runThread = false;
 	publisherThread->join();
+
 
     printf("\nEnd roboscanPublisher()!\n");
 }
@@ -212,6 +228,7 @@ rcl_interfaces::msg::SetParametersResult roboscanPublisher::parametersCallback( 
 	result.successful = true;
 	result.reason = "success";
 	// Here update class attributes, do some actions, etc.
+
 	for (const auto &param: parameters)
 	{
 		if (param.get_name() == "B. lensType")
@@ -408,20 +425,243 @@ rcl_interfaces::msg::SetParametersResult roboscanPublisher::parametersCallback( 
 				lidarParam.gwAddr= tmpIp;
 			}
 		}
-	}
+		else if (param.get_name() == "1. Frame Id")
+		{
+			lidarParam.publishName = param.as_string();
+		}
+		// Area 0
+		else if (param.get_name() == "area0. Enabled")
+		{
+			lidarParam.areaBtn[0] = param.as_bool();
+		}
+		else if (param.get_name() == "area0. minimum_detection_point")
+		{
+			lidarParam.minPoint[0] = param.as_int();
+		}
+		else if (param.get_name() == "area0. length_scale")
+		{
+			lidarParam.areaScaleX[0] = param.as_double();
+		}
+		else if (param.get_name() == "area0. width_scale")
+		{
+			lidarParam.areaScaleY[0] = param.as_double();
+		}
+		else if (param.get_name() == "area0. height_scale")
+		{
+			lidarParam.areaScaleZ[0] = param.as_double();
+		}
+		else if (param.get_name() == "area0. length_position")
+		{
+			lidarParam.areaPosX[0] = param.as_double();
+		}
+		else if (param.get_name() == "area0. width_position")
+		{
+			lidarParam.areaPosY[0] = param.as_double();
+		}
+		else if (param.get_name() == "area0. height_position")
+		{
+			lidarParam.areaPosZ[0] = param.as_double();
+		}
 
+		// Area 1
+		else if (param.get_name() == "area1. Enabled")
+		{
+			lidarParam.areaBtn[1] = param.as_bool();
+		}
+		else if (param.get_name() == "area1. minimum_detection_point")
+		{
+			lidarParam.minPoint[1] = param.as_int();
+		}
+		else if (param.get_name() == "area1. length_scale")
+		{
+			lidarParam.areaScaleX[1] = param.as_double();
+		}
+		else if (param.get_name() == "area1. width_scale")
+		{
+			lidarParam.areaScaleY[1] = param.as_double();
+		}
+		else if (param.get_name() == "area1. height_scale")
+		{
+			lidarParam.areaScaleZ[1] = param.as_double();
+		}
+		else if (param.get_name() == "area1. length_position")
+		{
+			lidarParam.areaPosX[1] = param.as_double();
+		}
+		else if (param.get_name() == "area1. width_position")
+		{
+			lidarParam.areaPosY[1] = param.as_double();
+		}
+		else if (param.get_name() == "area1. height_position")
+		{
+			lidarParam.areaPosZ[1] = param.as_double();
+		}
+
+		// Area 2
+		else if (param.get_name() == "area2. Enabled")
+		{
+			lidarParam.areaBtn[2] = param.as_bool();
+		}
+		else if (param.get_name() == "area2. minimum_detection_point")
+		{
+			lidarParam.minPoint[2] = param.as_int();
+		}
+		else if (param.get_name() == "area2. length_scale")
+		{
+			lidarParam.areaScaleX[2] = param.as_double();
+		}
+		else if (param.get_name() == "area2. width_scale")
+		{
+			lidarParam.areaScaleY[2] = param.as_double();
+		}
+		else if (param.get_name() == "area2. height_scale")
+		{
+			lidarParam.areaScaleZ[2] = param.as_double();
+		}
+		else if (param.get_name() == "area2. length_position")
+		{
+			lidarParam.areaPosX[2] = param.as_double();
+		}
+		else if (param.get_name() == "area2. width_position")
+		{
+			lidarParam.areaPosY[2] = param.as_double();
+		}
+		else if (param.get_name() == "area2. height_position")
+		{
+			lidarParam.areaPosZ[2] = param.as_double();
+		}
+
+		// Area 3
+		else if (param.get_name() == "area3. Enabled")
+		{
+			lidarParam.areaBtn[3] = param.as_bool();
+		}
+		else if (param.get_name() == "area3. minimum_detection_point")
+		{
+			lidarParam.minPoint[3] = param.as_int();
+		}
+		else if (param.get_name() == "area3. length_scale")
+		{
+			lidarParam.areaScaleX[3] = param.as_double();
+		}
+		else if (param.get_name() == "area3. width_scale")
+		{
+			lidarParam.areaScaleY[3] = param.as_double();
+		}
+		else if (param.get_name() == "area3. height_scale")
+		{
+			lidarParam.areaScaleZ[3] = param.as_double();
+		}
+		else if (param.get_name() == "area3. length_position")
+		{
+			lidarParam.areaPosX[3] = param.as_double();
+		}
+		else if (param.get_name() == "area3. width_position")
+		{
+			lidarParam.areaPosY[3] = param.as_double();
+		}
+		else if (param.get_name() == "area3. height_position")
+		{
+			lidarParam.areaPosZ[3] = param.as_double();
+		}
+
+	}
+ 
 	reconfigure = true;
 	return result;
 }
 
-void roboscanPublisher::setReconfigure()
+// Save & Load Test
+void roboscanPublisher::paramDump(const std::string & filename)
 {
+	lidarParam.paramSave = true;
+    std::string package_path = ament_index_cpp::get_package_share_directory("roboscan_nsl3130");
 
+    std::string full_path = package_path + "/" + filename;
+
+    std::string command = "ros2 param dump /roboscan_publish_node > " + full_path;
+
+    int result = std::system(command.c_str());
+
+    if (result == 0) {
+        try {
+            std::ifstream in(full_path);
+            std::ofstream out(full_path + ".tmp");
+
+            std::string line;
+            bool skip_block = false;
+
+            while (std::getline(in, line)) {
+                if (line.find("A:") != std::string::npos) {
+                    continue;
+                }
+                if (line.find("cvShow") != std::string::npos) {
+                    continue;
+                }
+
+                if (line.find("qos_overrides:") != std::string::npos) {
+                    skip_block = true;
+                    continue;
+                }
+
+                if (skip_block && !line.empty() && line[0] != ' ' && line.find(":") != std::string::npos) {
+                    skip_block = false;
+                }
+
+                if (!skip_block) {
+                    out << line << '\n';
+                }
+            }
+
+            in.close();
+            out.close();
+
+            std::filesystem::rename(full_path + ".tmp", package_path + "/rqt.yaml");
+            std::filesystem::remove(full_path);
+
+            std::cout << "save successful!!!!!!." << std::endl;
+
+        } catch (const std::filesystem::filesystem_error& e) {
+            std::filesystem::remove(full_path);
+            std::cerr << "save failed!! " << e.what() << std::endl;
+        }
+    } else {
+        std::cerr << "Command failed!!" << std::endl;
+        std::filesystem::remove(full_path);
+    }
+	lidarParam.paramSave = false;
+}
+
+
+void roboscanPublisher::paramLoad() // file exist check
+{
+	std::string yaml_file = ament_index_cpp::get_package_share_directory("roboscan_nsl3130") + "/rqt.yaml";
+
+	std::string command = "ros2 param load /roboscan_publish_node " + yaml_file + " > /dev/null";
+
+	if (std::filesystem::exists(yaml_file)) {
+		int result = std::system(command.c_str());
+
+		if (result == 0) {
+			std::cout << "Load successful!!!!!" << std::endl;
+		} else {
+			std::cerr << "Load failed!!" << std::endl;
+		}
+	} else {
+		std::cerr << "not exist yaml file: " << yaml_file << std::endl;
+	}
+}
+
+
+void roboscanPublisher::setReconfigure()
+{ 
 	printf("setReconfigure\n");
 
 	if( lidarParam.changedIpInfo ){
+		interface.stopStream();    
 		lidarParam.changedIpInfo = false;
 		interface.setIpAddr( lidarParam.ipAddr, lidarParam.netMask, lidarParam.gwAddr);
+		paramDump("rqt_temp.yaml");
 	}
 	
 	interface.stopStream();    
@@ -449,8 +689,114 @@ void roboscanPublisher::setReconfigure()
 	  lidarParam.old_lensCenterOffsetX = lidarParam.lensCenterOffsetX;
 	  lidarParam.old_lensCenterOffsetY = lidarParam.lensCenterOffsetY;
 	  lidarParam.old_lensType = lidarParam.lensType;
+	}
+
+	area0Box.header.frame_id = lidarParam.publishName;
+	area1Box.header.frame_id = lidarParam.publishName;
+	area2Box.header.frame_id = lidarParam.publishName;
+	area3Box.header.frame_id = lidarParam.publishName;
+
+
+	// Area 0
+	if(lidarParam.areaBtn[0])
+	{
+		area0Box.action = visualization_msgs::msg::Marker::ADD;
+		area0Box.scale.x = lidarParam.areaScaleX[0];
+		area0Box.scale.y = lidarParam.areaScaleY[0];
+		area0Box.scale.z = lidarParam.areaScaleZ[0];
+	
+		area0Box.pose.position.x = lidarParam.areaScaleX[0] / 2.0 + lidarParam.areaPosX[0];
+		area0Box.pose.position.y = lidarParam.areaPosY[0];
+		area0Box.pose.position.z = lidarParam.areaPosZ[0];
+
+		lidarParam.x_min[0] = lidarParam.areaPosX[0] , lidarParam.x_max[0] = lidarParam.areaPosX[0] + lidarParam.areaScaleX[0] ;
+		lidarParam.y_min[0] = lidarParam.areaPosY[0] - lidarParam.areaScaleY[0] / 2.0, lidarParam.y_max[0] = lidarParam.areaPosY[0] + lidarParam.areaScaleY[0] / 2.0;
+		lidarParam.z_min[0] = lidarParam.areaPosZ[0] - lidarParam.areaScaleZ[0] / 2.0, lidarParam.z_max[0] = lidarParam.areaPosZ[0] + lidarParam.areaScaleZ[0] / 2.0;
+	}
+	
+	else
+	{
+		area0Box.action = visualization_msgs::msg::Marker::DELETE;
+		lidarParam.pointCount[0] = 0;
+		lidarParam.pointDetect[0] = false;
+	}
+
+
+	// Area 1
+	if(lidarParam.areaBtn[1])
+	{
+		area1Box.action = visualization_msgs::msg::Marker::ADD;
+		area1Box.scale.x = lidarParam.areaScaleX[1];
+		area1Box.scale.y = lidarParam.areaScaleY[1];
+		area1Box.scale.z = lidarParam.areaScaleZ[1];
+
+		area1Box.pose.position.x = lidarParam.areaScaleX[1] / 2.0 + lidarParam.areaPosX[1];
+		area1Box.pose.position.y = lidarParam.areaPosY[1];
+		area1Box.pose.position.z = lidarParam.areaPosZ[1];
+
+		lidarParam.x_min[1] = lidarParam.areaPosX[1], lidarParam.x_max[1] = lidarParam.areaPosX[1] + lidarParam.areaScaleX[1];
+		lidarParam.y_min[1] = lidarParam.areaPosY[1] - lidarParam.areaScaleY[1] / 2.0, lidarParam.y_max[1] = lidarParam.areaPosY[1] + lidarParam.areaScaleY[1] / 2.0;
+		lidarParam.z_min[1] = lidarParam.areaPosZ[1] - lidarParam.areaScaleZ[1] / 2.0, lidarParam.z_max[1] = lidarParam.areaPosZ[1] + lidarParam.areaScaleZ[1] / 2.0;
+
+		
+	}
+	else
+	{
+		area1Box.action = visualization_msgs::msg::Marker::DELETE;
+		lidarParam.pointCount[1] = 0;
+		lidarParam.pointDetect[1] = false;
+	}
+
+	// Area 2
+	if(lidarParam.areaBtn[2])
+	{
+		area2Box.action = visualization_msgs::msg::Marker::ADD;
+		area2Box.scale.x = lidarParam.areaScaleX[2];
+		area2Box.scale.y = lidarParam.areaScaleY[2];
+		area2Box.scale.z = lidarParam.areaScaleZ[2];
+
+		area2Box.pose.position.x = lidarParam.areaScaleX[2] / 2.0 + lidarParam.areaPosX[2];
+		area2Box.pose.position.y = lidarParam.areaPosY[2];
+		area2Box.pose.position.z = lidarParam.areaPosZ[2];
+
+		lidarParam.x_min[2] = lidarParam.areaPosX[2], lidarParam.x_max[2] = lidarParam.areaPosX[2] + lidarParam.areaScaleX[2];
+		lidarParam.y_min[2] = lidarParam.areaPosY[2] - lidarParam.areaScaleY[2] / 2.0, lidarParam.y_max[2] = lidarParam.areaPosY[2] + lidarParam.areaScaleY[2] / 2.0;
+		lidarParam.z_min[2] = lidarParam.areaPosZ[2] - lidarParam.areaScaleZ[2] / 2.0, lidarParam.z_max[2] = lidarParam.areaPosZ[2] + lidarParam.areaScaleZ[2] / 2.0;
 
 	}
+	else
+	{
+		area2Box.action = visualization_msgs::msg::Marker::DELETE;
+		lidarParam.pointCount[2] = 0;
+		lidarParam.pointDetect[2] = false;
+	}
+
+	// Area 3
+	if(lidarParam.areaBtn[3])
+	{
+		area3Box.action = visualization_msgs::msg::Marker::ADD;
+		area3Box.scale.x = lidarParam.areaScaleX[3];
+		area3Box.scale.y = lidarParam.areaScaleY[3];
+		area3Box.scale.z = lidarParam.areaScaleZ[3];
+
+		area3Box.pose.position.x = lidarParam.areaScaleX[3] / 2.0 + lidarParam.areaPosX[3];
+		area3Box.pose.position.y = lidarParam.areaPosY[3];
+		area3Box.pose.position.z = lidarParam.areaPosZ[3];
+
+		lidarParam.x_min[3] = lidarParam.areaPosX[3], lidarParam.x_max[3] = lidarParam.areaPosX[3] + lidarParam.areaScaleX[3];
+		lidarParam.y_min[3] = lidarParam.areaPosY[3] - lidarParam.areaScaleY[3] / 2.0, lidarParam.y_max[3] = lidarParam.areaPosY[3] + lidarParam.areaScaleY[3] / 2.0;
+		lidarParam.z_min[3] = lidarParam.areaPosZ[3] - lidarParam.areaScaleZ[3] / 2.0, lidarParam.z_max[3] = lidarParam.areaPosZ[3] + lidarParam.areaScaleZ[3] / 2.0;
+
+	}
+	else
+	{
+		area3Box.action = visualization_msgs::msg::Marker::DELETE;
+		lidarParam.pointCount[0] = 0;
+		lidarParam.pointDetect[0] = false;
+	}
+
+
+
 
 	//startStream = true;
 	printf("setReconfigure OK!\n\n");
@@ -458,6 +804,15 @@ void roboscanPublisher::setReconfigure()
 	startStreaming();
 
 	setWinName();
+
+
+	if(!lidarParam.paramLoad && !lidarParam.paramSave)
+	{
+		result = std::async(std::launch::async, [&]() {
+			paramDump("rqt_temp.yaml");
+		  });
+	}
+	lidarParam.paramLoad = false;
 
 }
 
@@ -499,10 +854,9 @@ void roboscanPublisher::setWinName()
 void roboscanPublisher::initialise()
 {
 	printf("Init roboscan_nsl3130 node\n");
-
-
 	interface.stopStream();
 
+	//defalut
 	lidarParam.lensType = 2;
 	lidarParam.lensCenterOffsetX = 0;
 	lidarParam.lensCenterOffsetY = 0;
@@ -543,12 +897,227 @@ void roboscanPublisher::initialise()
 	lidarParam.ipAddr = "192.168.0.220";
 	lidarParam.netMask = "255.255.255.0";
 	lidarParam.gwAddr = "192.168.0.1";
+	lidarParam.publishName = "roboscan_frame";
 	lidarParam.maxDistance = 12500;
+
+	lidarParam.paramSave = false;
+
 	//roi_height
+
+	lidarParam.areaBtn[0] = true;
+	lidarParam.areaBtn[1] = true;
+	lidarParam.areaBtn[2] = true;
+	lidarParam.areaBtn[3] = true;
+
+	lidarParam.areaScaleX[0] = 0.5;
+	lidarParam.areaScaleX[1] = 0.5;
+	lidarParam.areaScaleX[2] = 0.5;
+	lidarParam.areaScaleX[3] = 0.5;
+
+	lidarParam.areaScaleY[0] = 1;
+	lidarParam.areaScaleY[1] = 1;
+	lidarParam.areaScaleY[2] = 1;
+	lidarParam.areaScaleY[3] = 1;
+
+	lidarParam.areaScaleZ[0] = 1;
+	lidarParam.areaScaleZ[1] = 1;
+	lidarParam.areaScaleZ[2] = 1;
+	lidarParam.areaScaleZ[3] = 1;
+
+	lidarParam.areaPosX[0] = 0;
+	lidarParam.areaPosX[1] = 0.5;
+	lidarParam.areaPosX[2] = 1;
+	lidarParam.areaPosX[3] = 1.5;
+
+	lidarParam.areaPosY[0] = 0;
+	lidarParam.areaPosY[1] = 0;
+	lidarParam.areaPosY[2] = 0;
+	lidarParam.areaPosY[3] = 0;
+
+	lidarParam.areaPosZ[0] = 0;
+	lidarParam.areaPosZ[1] = 0;
+	lidarParam.areaPosZ[2] = 0;
+	lidarParam.areaPosZ[3] = 0;
+
+	lidarParam.minPoint[0] = 80;
+	lidarParam.minPoint[1] = 80;
+	lidarParam.minPoint[2] = 80;
+	lidarParam.minPoint[3] = 80;
+
+	this->declare_parameter<string>("0. IP Addr", lidarParam.ipAddr);
+//	this->declare_parameter<string>("1. Net Mask", lidarParam.netMask);
+//	this->declare_parameter<string>("2. GW Addr", lidarParam.gwAddr);
+    this->declare_parameter<string>("1. Frame Id", lidarParam.publishName);
+
+	this->declare_parameter<uint16_t>("B. lensType", lidarParam.lensType);
+	this->declare_parameter<uint16_t>("C. imageType", lidarParam.imageType);
+	this->declare_parameter<uint16_t>("D. hdr_mode", lidarParam.hdr_mode);
+	this->declare_parameter<uint16_t>("E. int0", lidarParam.int0);
+	this->declare_parameter<uint16_t>("F. int1", lidarParam.int1);
+	this->declare_parameter<uint16_t>("G. int2", lidarParam.int2);
+	this->declare_parameter<uint16_t>("H. intGr",lidarParam.intGr);
+	this->declare_parameter<uint16_t>("I. minAmplitude", lidarParam.minAmplitude);
+	this->declare_parameter<uint16_t>("J. modIndex", lidarParam.frequencyModulation);
+	this->declare_parameter<uint16_t>("K. channel", lidarParam.channel);
+	this->declare_parameter<uint16_t>("L. roi_leftX", lidarParam.roi_leftX);
+	this->declare_parameter<uint16_t>("M. roi_topY", lidarParam.roi_topY);
+	this->declare_parameter<uint16_t>("N. roi_rightX", lidarParam.roi_rightX);
+//	this->declare_parameter<int>("O. roi_bottomY", lidarParam.roi_bottomY);
+	this->declare_parameter<double>("P. transformAngle", lidarParam.transformAngle);
+	this->declare_parameter<int>("Q. cutPixels", lidarParam.transformAngle);
+	this->declare_parameter<bool>("R. medianFilter", lidarParam.medianFilter);
+	this->declare_parameter<bool>("S. averageFilter", lidarParam.averageFilter);
+	this->declare_parameter<double>("T. temporalFilterFactor", lidarParam.temporalFilterFactor);
+	this->declare_parameter<uint16_t>("T. temporalFilterFactorThreshold", lidarParam.temporalFilterThreshold);
+	this->declare_parameter<uint16_t>("U. edgeFilterThreshold", lidarParam.edgeFilterThreshold);
+	//this->declare_parameter<int>("W temporalEdgeThresholdLow", lidarParam.temporalEdgeThresholdLow);
+	//this->declare_parameter<int>("X temporalEdgeThresholdHigh", lidarParam.temporalEdgeThresholdHigh);
+	this->declare_parameter<uint16_t>("V. interferenceDetectionLimit", lidarParam.interferenceDetectionLimit);
+	this->declare_parameter<bool>("V. useLastValue", lidarParam.useLastValue);
+
+	this->declare_parameter<bool>("A. cvShow", lidarParam.cvShow);
+	this->declare_parameter<uint16_t>("W. dualBeam", lidarParam.dualBeam);
+	this->declare_parameter<bool>("X. grayscale LED", lidarParam.grayscaleIlluminationMode);
+	this->declare_parameter<bool>("Y. PointColud EDGE", lidarParam.pointCloudEdgeFilter);
+	this->declare_parameter<int>("Z. MaxDistance", lidarParam.maxDistance);
+
+	
+	// Area 0
+	this->declare_parameter<bool>("area0. Enabled", lidarParam.areaBtn[0]);
+	this->declare_parameter<int>("area0. minimum_detection_point", lidarParam.minPoint[0]);
+
+	this->declare_parameter<double>("area0. length_scale", lidarParam.areaScaleX[0]);
+	this->declare_parameter<double>("area0. width_scale", lidarParam.areaScaleY[0]);
+	this->declare_parameter<double>("area0. height_scale", lidarParam.areaScaleZ[0]);
+
+	this->declare_parameter<double>("area0. length_position", lidarParam.areaPosX[0]);
+	this->declare_parameter<double>("area0. width_position", lidarParam.areaPosY[0]);
+	this->declare_parameter<double>("area0. height_position", lidarParam.areaPosZ[0]);
+
+	// Area 1
+	this->declare_parameter<bool>("area1. Enabled", lidarParam.areaBtn[1]);
+	this->declare_parameter<int>("area1. minimum_detection_point", lidarParam.minPoint[1]);
+
+	this->declare_parameter<double>("area1. length_scale", lidarParam.areaScaleX[1]);
+	this->declare_parameter<double>("area1. width_scale", lidarParam.areaScaleY[1]);
+	this->declare_parameter<double>("area1. height_scale", lidarParam.areaScaleZ[1]);
+
+	this->declare_parameter<double>("area1. length_position", lidarParam.areaPosX[1]);
+	this->declare_parameter<double>("area1. width_position", lidarParam.areaPosY[1]);
+	this->declare_parameter<double>("area1. height_position", lidarParam.areaPosZ[1]);
+
+	// Area 2
+	this->declare_parameter<bool>("area2. Enabled", lidarParam.areaBtn[2]);
+	this->declare_parameter<int>("area2. minimum_detection_point", lidarParam.minPoint[2]);
+
+	this->declare_parameter<double>("area2. length_scale", lidarParam.areaScaleX[2]);
+	this->declare_parameter<double>("area2. width_scale", lidarParam.areaScaleY[2]);
+	this->declare_parameter<double>("area2. height_scale", lidarParam.areaScaleZ[2]);
+
+	this->declare_parameter<double>("area2. length_position", lidarParam.areaPosX[2]);
+	this->declare_parameter<double>("area2. width_position", lidarParam.areaPosY[2]);
+	this->declare_parameter<double>("area2. height_position", lidarParam.areaPosZ[2]);
+
+	// Area 3
+	this->declare_parameter<bool>("area3. Enabled", lidarParam.areaBtn[3]);
+	this->declare_parameter<int>("area3. minimum_detection_point", lidarParam.minPoint[3]);
+
+	this->declare_parameter<double>("area3. length_scale", lidarParam.areaScaleX[3]);
+	this->declare_parameter<double>("area3. width_scale", lidarParam.areaScaleY[3]);
+	this->declare_parameter<double>("area3. height_scale", lidarParam.areaScaleZ[3]);
+
+	this->declare_parameter<double>("area3. length_position", lidarParam.areaPosX[3]);
+	this->declare_parameter<double>("area3. width_position", lidarParam.areaPosY[3]);
+	this->declare_parameter<double>("area3. height_position", lidarParam.areaPosZ[3]);
+
+
+	//roi_height
+
+	this->get_parameter_or<std::string>("0. IP Addr", lidarParam.ipAddr, "192.168.0.220");
+	//this->get_parameter_or<std::string>("1. Frame Id", lidarParam.publishName, "roboscan_frame");
+	this->get_parameter_or<uint16_t>("B. lensType", lidarParam.lensType, 2);
+	this->get_parameter_or<uint16_t>("C. imageType",  lidarParam.imageType, 2);
+	this->get_parameter_or<uint16_t>("D. hdr_mode", lidarParam.hdr_mode, 0); //0 - hdr off, 1 - hdr spatial, 2 - hdr temporal
+	this->get_parameter_or<uint16_t>("E. int0", lidarParam.int0, 1500);
+	this->get_parameter_or<uint16_t>("F. int1", lidarParam.int1, 100);
+	this->get_parameter_or<uint16_t>("G. int2", lidarParam.int2, 50);
+	this->get_parameter_or<uint16_t>("H. intGr",lidarParam.intGr, 100); //integration times
+	this->get_parameter_or<uint16_t>("I. minAmplitude", lidarParam.minAmplitude, 100);
+	this->get_parameter_or<uint16_t>("J. modIndex", lidarParam.frequencyModulation, 0);
+	this->get_parameter_or<uint16_t>("K. channel", lidarParam.channel, 0);
+	this->get_parameter_or<uint16_t>("L. roi_leftX", lidarParam.roi_leftX, 0);
+	this->get_parameter_or<uint16_t>("M. roi_topY", lidarParam.roi_topY, 0);
+	this->get_parameter_or<uint16_t>("N. roi_rightX", lidarParam.roi_rightX, 319);
+	//this->get_parameter_or<uint16_t>("O. roi_bottomY", lidarParam.roi_bottomY, 239);
+	this->get_parameter_or<double>("P. transformAngle", lidarParam.transformAngle, 0);
+	this->get_parameter_or<bool>("R. medianFilter", lidarParam.medianFilter, false);
+	this->get_parameter_or<bool>("S. averageFilter", lidarParam.averageFilter, false);
+	this->get_parameter_or<double>("T. temporalFilterFactor", lidarParam.temporalFilterFactor, 0.3);
+	this->get_parameter_or<uint16_t>("T. temporalFilterFactorThreshold", lidarParam.temporalFilterThreshold, 200);
+	this->get_parameter_or<uint16_t>("U. edgeFilterThreshold", lidarParam.edgeFilterThreshold, 0);
+	//this->get_parameter_or<uint16_t>("W temporalEdgeThresholdLow", lidarParam.temporalEdgeThresholdLow, 0);
+	//this->get_parameter_or<uint16_t>("X temporalEdgeThresholdHigh", lidarParam.temporalEdgeThresholdHigh, 0);
+	this->get_parameter_or<uint16_t>("V. interferenceDetectionLimit", lidarParam.interferenceDetectionLimit, 0);
+	this->get_parameter_or<bool>("V. useLastValue", lidarParam.useLastValue, false);
+	this->get_parameter_or<uint16_t>("W. dualBeam", lidarParam.dualBeam, 2);
+	this->get_parameter_or<bool>("X. grayscale LED", lidarParam.grayscaleIlluminationMode, false);
+	this->get_parameter_or<bool>("Y. PointColud EDGE", lidarParam.pointCloudEdgeFilter, false);
+	this->get_parameter_or<int>("Z. MaxDistance", lidarParam.maxDistance, 12500);
+
+		
+	// Area 0
+	this->get_parameter_or<bool>("area0. Enabled", lidarParam.areaBtn[0], true);
+	this->get_parameter_or<int>("area0. minimum_detection_point", lidarParam.minPoint[0], 80);
+
+	this->get_parameter_or<double>("area0. length_scale", lidarParam.areaScaleX[0], 1);
+	this->get_parameter_or<double>("area0. width_scale", lidarParam.areaScaleY[0], 1);
+	this->get_parameter_or<double>("area0. height_scale", lidarParam.areaScaleZ[0], 1);
+
+	this->get_parameter_or<double>("area0. length_position", lidarParam.areaPosX[0], 0);
+	this->get_parameter_or<double>("area0. width_position", lidarParam.areaPosY[0], 0);
+	this->get_parameter_or<double>("area0. height_position", lidarParam.areaPosZ[0], 0);
+
+	// Area 1
+	this->get_parameter_or<bool>("area1. Enabled", lidarParam.areaBtn[1], true);
+	this->get_parameter_or<int>("area1. minimum_detection_point", lidarParam.minPoint[1], 80);
+
+	this->get_parameter_or<double>("area1. length_scale", lidarParam.areaScaleX[1], 1);
+	this->get_parameter_or<double>("area1. width_scale", lidarParam.areaScaleY[1], 1);
+	this->get_parameter_or<double>("area1. height_scale", lidarParam.areaScaleZ[1], 1);
+
+	this->get_parameter_or<double>("area1. length_position", lidarParam.areaPosX[1], 0);
+	this->get_parameter_or<double>("area1. width_position", lidarParam.areaPosY[1], 1);
+	this->get_parameter_or<double>("area1. height_position", lidarParam.areaPosZ[1], 0);
+
+	// Area 2
+	this->get_parameter_or<bool>("area2. Enabled", lidarParam.areaBtn[2], true);
+	this->get_parameter_or<int>("area2. minimum_detection_point", lidarParam.minPoint[2], 80);
+
+	this->get_parameter_or<double>("area2. length_scale", lidarParam.areaScaleX[2], 1);
+	this->get_parameter_or<double>("area2. width_scale", lidarParam.areaScaleY[2], 1);
+	this->get_parameter_or<double>("area2. height_scale", lidarParam.areaScaleZ[2], 1);
+
+	this->get_parameter_or<double>("area2. length_position", lidarParam.areaPosX[2], 0);
+	this->get_parameter_or<double>("area2. width_position", lidarParam.areaPosY[2], -1);
+	this->get_parameter_or<double>("area2. height_position", lidarParam.areaPosZ[2], 0);
+
+	// Area 3
+	this->get_parameter_or<bool>("area3. Enabled", lidarParam.areaBtn[3], true);
+	this->get_parameter_or<int>("area3. minimum_detection_point", lidarParam.minPoint[3], 80);
+
+	this->get_parameter_or<double>("area3. length_scale", lidarParam.areaScaleX[3], 1);
+	this->get_parameter_or<double>("area3. width_scale", lidarParam.areaScaleY[3], 1);
+	this->get_parameter_or<double>("area3. height_scale", lidarParam.areaScaleZ[3], 1);
+
+	this->get_parameter_or<double>("area3. length_position", lidarParam.areaPosX[3], 1);
+	this->get_parameter_or<double>("area3. width_position", lidarParam.areaPosY[3], 0);
+	this->get_parameter_or<double>("area3. height_position", lidarParam.areaPosZ[3], 0);
+
 
 	setWinName();
 
 	rclcpp::Parameter pIPAddr("0. IP Addr", lidarParam.ipAddr);
+	rclcpp::Parameter FrameID("1. Frame Id", lidarParam.publishName);
 //	rclcpp::Parameter pNetMask("1. Net Mask", lidarParam.netMask);
 //	rclcpp::Parameter pGWAddr("2. GW Addr", lidarParam.gwAddr);
 
@@ -584,43 +1153,59 @@ void roboscanPublisher::initialise()
 	rclcpp::Parameter pPCEdgeFilter("Y. PointColud EDGE", lidarParam.pointCloudEdgeFilter);
 	rclcpp::Parameter pMaxDistance("Z. MaxDistance", lidarParam.maxDistance);
 
-	this->declare_parameter<string>("0. IP Addr", lidarParam.ipAddr);
-//	this->declare_parameter<string>("1. Net Mask", lidarParam.netMask);
-//	this->declare_parameter<string>("2. GW Addr", lidarParam.gwAddr);
 
-	this->declare_parameter<int>("B. lensType", lidarParam.lensType);
-	this->declare_parameter<int>("C. imageType", lidarParam.imageType);
-	this->declare_parameter<int>("D. hdr_mode", lidarParam.hdr_mode);
-	this->declare_parameter<int>("E. int0", lidarParam.int0);
-	this->declare_parameter<int>("F. int1", lidarParam.int1);
-	this->declare_parameter<int>("G. int2", lidarParam.int2);
-	this->declare_parameter<int>("H. intGr",lidarParam.intGr);
-	this->declare_parameter<int>("I. minAmplitude", lidarParam.minAmplitude);
-	this->declare_parameter<int>("J. modIndex", lidarParam.frequencyModulation);
-	this->declare_parameter<int>("K. channel", lidarParam.channel);
-	this->declare_parameter<int>("L. roi_leftX", lidarParam.roi_leftX);
-	this->declare_parameter<int>("M. roi_topY", lidarParam.roi_topY);
-	this->declare_parameter<int>("N. roi_rightX", lidarParam.roi_rightX);
-//	this->declare_parameter<int>("O. roi_bottomY", lidarParam.roi_bottomY);
-	this->declare_parameter<double>("P. transformAngle", lidarParam.transformAngle);
-	this->declare_parameter<int>("Q. cutPixels", lidarParam.transformAngle);
-	this->declare_parameter<bool>("R. medianFilter", lidarParam.medianFilter);
-	this->declare_parameter<bool>("S. averageFilter", lidarParam.averageFilter);
-	this->declare_parameter<double>("T. temporalFilterFactor", lidarParam.temporalFilterFactor);
-	this->declare_parameter<int>("T. temporalFilterFactorThreshold", lidarParam.temporalFilterThreshold);
-	this->declare_parameter<int>("U. edgeFilterThreshold", lidarParam.edgeFilterThreshold);
-	//this->declare_parameter<int>("W temporalEdgeThresholdLow", lidarParam.temporalEdgeThresholdLow);
-	//this->declare_parameter<int>("X temporalEdgeThresholdHigh", lidarParam.temporalEdgeThresholdHigh);
-	this->declare_parameter<int>("V. interferenceDetectionLimit", lidarParam.interferenceDetectionLimit);
-	this->declare_parameter<bool>("V. useLastValue", lidarParam.useLastValue);
+	// Area 0 parameter
+	rclcpp::Parameter area0btn("area0. Enabled", lidarParam.areaBtn[0]);
+	rclcpp::Parameter area0minPoint("area0. minimum_detection_point", lidarParam.minPoint[0]);
 
-	this->declare_parameter<bool>("A. cvShow", lidarParam.cvShow);
-	this->declare_parameter<int>("W. dualBeam", lidarParam.dualBeam);
-	this->declare_parameter<bool>("X. grayscale LED", lidarParam.grayscaleIlluminationMode);
-	this->declare_parameter<bool>("Y. PointColud EDGE", lidarParam.pointCloudEdgeFilter);
-	this->declare_parameter<int>("Z. MaxDistance", lidarParam.maxDistance);
+	rclcpp::Parameter area0ScaleX("area0. length_scale", lidarParam.areaScaleX[0]);
+	rclcpp::Parameter area0ScaleY("area0. width_scale", lidarParam.areaScaleY[0]);
+	rclcpp::Parameter area0ScaleZ("area0. height_scale", lidarParam.areaScaleZ[0]);
+
+	rclcpp::Parameter area0PosX("area0. length_position", lidarParam.areaPosX[0]);
+	rclcpp::Parameter area0PosY("area0. width_position", lidarParam.areaPosY[0]);
+	rclcpp::Parameter area0PosZ("area0. height_position", lidarParam.areaPosZ[0]);
+
+	// Area 1 parameter
+	rclcpp::Parameter area1btn("area1. Enabled", lidarParam.areaBtn[1]);
+	rclcpp::Parameter area1minPoint("area1. minimum_detection_point", lidarParam.minPoint[1]);
+
+	rclcpp::Parameter area1ScaleX("area1. length_scale", lidarParam.areaScaleX[1]);
+	rclcpp::Parameter area1ScaleY("area1. width_scale", lidarParam.areaScaleY[1]);
+	rclcpp::Parameter area1ScaleZ("area1. height_scale", lidarParam.areaScaleZ[1]);
+
+	rclcpp::Parameter area1PosX("area1. length_position", lidarParam.areaPosX[1]);
+	rclcpp::Parameter area1PosY("area1. width_position", lidarParam.areaPosY[1]);
+	rclcpp::Parameter area1PosZ("area1. height_position", lidarParam.areaPosZ[1]);
+
+	// Area 2 parameter
+	rclcpp::Parameter area2btn("area2. Enabled", lidarParam.areaBtn[2]);
+	rclcpp::Parameter area2minPoint("area2. minimum_detection_point", lidarParam.minPoint[2]);
+
+	rclcpp::Parameter area2ScaleX("area2. length_scale", lidarParam.areaScaleX[2]);
+	rclcpp::Parameter area2ScaleY("area2. width_scale", lidarParam.areaScaleY[2]);
+	rclcpp::Parameter area2ScaleZ("area2. height_scale", lidarParam.areaScaleZ[2]);
+
+	rclcpp::Parameter area2PosX("area2. length_position", lidarParam.areaPosX[2]);
+	rclcpp::Parameter area2PosY("area2. width_position", lidarParam.areaPosY[2]);
+	rclcpp::Parameter area2PosZ("area2. height_position", lidarParam.areaPosZ[2]);
+
+	// Area 3 parameter
+	rclcpp::Parameter area3btn("area3. Enabled", lidarParam.areaBtn[3]);
+	rclcpp::Parameter area3minPoint("area3. minimum_detection_point", lidarParam.minPoint[3]);
+
+	rclcpp::Parameter area3ScaleX("area3. length_scale", lidarParam.areaScaleX[3]);
+	rclcpp::Parameter area3ScaleY("area3. width_scale", lidarParam.areaScaleY[3]);
+	rclcpp::Parameter area3ScaleZ("area3. height_scale", lidarParam.areaScaleZ[3]);
+
+	rclcpp::Parameter area3PosX("area3. length_position", lidarParam.areaPosX[3]);
+	rclcpp::Parameter area3PosY("area3. width_position", lidarParam.areaPosY[3]);
+	rclcpp::Parameter area3PosZ("area3. height_position", lidarParam.areaPosZ[3]);
+
+
 
 	this->set_parameter(pIPAddr);
+	this->set_parameter(FrameID);
 //	this->set_parameter(pNetMask);
 //	this->set_parameter(pGWAddr);
 
@@ -655,7 +1240,48 @@ void roboscanPublisher::initialise()
 	this->set_parameter(pGrayLED);
 	this->set_parameter(pPCEdgeFilter);
 	this->set_parameter(pMaxDistance);
-	
+
+
+	// Area 0
+	this->set_parameter(area0btn);
+	this->set_parameter(area0minPoint);
+	this->set_parameter(area0ScaleX);
+	this->set_parameter(area0ScaleY);
+	this->set_parameter(area0ScaleZ);
+	this->set_parameter(area0PosX);
+	this->set_parameter(area0PosY);
+	this->set_parameter(area0PosZ);
+
+	// Area 1
+	this->set_parameter(area1btn);
+	this->set_parameter(area1minPoint);
+	this->set_parameter(area1ScaleX);
+	this->set_parameter(area1ScaleY);
+	this->set_parameter(area1ScaleZ);
+	this->set_parameter(area1PosX);
+	this->set_parameter(area1PosY);
+	this->set_parameter(area1PosZ);
+
+	// Area 2
+	this->set_parameter(area2btn);
+	this->set_parameter(area2minPoint);
+	this->set_parameter(area2ScaleX);
+	this->set_parameter(area2ScaleY);
+	this->set_parameter(area2ScaleZ);
+	this->set_parameter(area2PosX);
+	this->set_parameter(area2PosY);
+	this->set_parameter(area2PosZ);
+
+	// Area 3
+	this->set_parameter(area3btn);
+	this->set_parameter(area3minPoint);
+	this->set_parameter(area3ScaleX);
+	this->set_parameter(area3ScaleY);
+	this->set_parameter(area3ScaleZ);
+	this->set_parameter(area3PosX);
+	this->set_parameter(area3PosY);
+	this->set_parameter(area3PosZ);
+
 	
 
 	//std::shared_ptr<rclcpp::Node> node = rclcpp::Node::make_shared("cameraSub");
@@ -664,12 +1290,120 @@ void roboscanPublisher::initialise()
 	connectionFrames = interface.subscribeFrame([&](Frame* f) -> void {  updateFrame(f); });
 	cartesianTransform.initLensTransform(sensorPixelSizeMM, width, height, lidarParam.lensCenterOffsetX, lidarParam.lensCenterOffsetY, lidarParam.lensType); //0.02 mm - sensor pixel size
 
+
+	//area0box
+    area0Box.header.frame_id = lidarParam.publishName;
+    area0Box.ns = "Markers_Box_" + std::to_string(0);
+    area0Box.id = 0;
+    area0Box.type = visualization_msgs::msg::Marker::CUBE;
+    area0Box.action = visualization_msgs::msg::Marker::ADD;
+    area0Box.pose.position.x = lidarParam.areaScaleX[0] / 2.0 + lidarParam.areaPosX[0];
+    area0Box.pose.position.y = lidarParam.areaPosY[0];
+    area0Box.pose.position.z = lidarParam.areaPosZ[0];
+    area0Box.pose.orientation.x = 0.0;
+    area0Box.pose.orientation.y = 0.0;
+    area0Box.pose.orientation.z = 0.0; 
+    area0Box.pose.orientation.w = 1.0;
+    area0Box.scale.x = lidarParam.areaScaleX[0];
+    area0Box.scale.y = lidarParam.areaScaleY[0];
+    area0Box.scale.z = lidarParam.areaScaleZ[0];
+
+    area0Box.color.r = 1.0f;
+    area0Box.color.g = 0.0f;    
+    area0Box.color.b = 0.0f;
+    area0Box.color.a = 0.3f;
+
+	lidarParam.x_min[0] = lidarParam.areaPosX[0] , lidarParam.x_max[0] = lidarParam.areaPosX[0] + lidarParam.areaScaleX[0] ;
+	lidarParam.y_min[0] = lidarParam.areaPosY[0] - lidarParam.areaScaleY[0] / 2.0, lidarParam.y_max[0] = lidarParam.areaPosY[0] + lidarParam.areaScaleY[0] / 2.0;
+	lidarParam.z_min[0] = lidarParam.areaPosZ[0] - lidarParam.areaScaleZ[0] / 2.0, lidarParam.z_max[0] = lidarParam.areaPosZ[0] + lidarParam.areaScaleZ[0] / 2.0;
+
+	//area1box	
+	area1Box.header.frame_id = lidarParam.publishName;
+    area1Box.ns = "Markers_Box_" + std::to_string(1);
+    area1Box.id = 1;
+    area1Box.type = visualization_msgs::msg::Marker::CUBE;
+    area1Box.action = visualization_msgs::msg::Marker::ADD;
+	area1Box.pose.position.x = lidarParam.areaScaleX[1] / 2.0 + lidarParam.areaPosX[1];
+	area1Box.pose.position.y = lidarParam.areaPosY[1];
+	area1Box.pose.position.z = lidarParam.areaPosZ[1];	
+    area1Box.pose.orientation.x = 0.0;
+    area1Box.pose.orientation.y = 0.0;
+    area1Box.pose.orientation.z = 0.0; 
+    area1Box.pose.orientation.w = 1.0;
+    area1Box.scale.x = lidarParam.areaScaleX[1];
+    area1Box.scale.y = lidarParam.areaScaleY[1];
+    area1Box.scale.z = lidarParam.areaScaleZ[1];
+
+    area1Box.color.r = 1.0f;
+    area1Box.color.g = 1.0f;    
+    area1Box.color.b = 0.0f;
+    area1Box.color.a = 0.3f;
+
+	lidarParam.x_min[1] = lidarParam.areaPosX[1], lidarParam.x_max[1] = lidarParam.areaPosX[1] + lidarParam.areaScaleX[1];
+	lidarParam.y_min[1] = lidarParam.areaPosY[1] - lidarParam.areaScaleY[1] / 2.0, lidarParam.y_max[1] = lidarParam.areaPosY[1] + lidarParam.areaScaleY[1] / 2.0;
+	lidarParam.z_min[1] = lidarParam.areaPosZ[1] - lidarParam.areaScaleZ[1] / 2.0, lidarParam.z_max[1] = lidarParam.areaPosZ[1] + lidarParam.areaScaleZ[1] / 2.0;
+
+
+	//area2box	
+	area2Box.header.frame_id = lidarParam.publishName;
+    area2Box.ns = "Markers_Box_" + std::to_string(2);
+    area2Box.id = 2;
+    area2Box.type = visualization_msgs::msg::Marker::CUBE;
+    area2Box.action = visualization_msgs::msg::Marker::ADD;
+	area2Box.pose.position.x = lidarParam.areaScaleX[2] / 2.0 + lidarParam.areaPosX[2];
+	area2Box.pose.position.y = lidarParam.areaPosY[2];
+	area2Box.pose.position.z = lidarParam.areaPosZ[2];
+    area2Box.pose.orientation.x = 0.0;
+    area2Box.pose.orientation.y = 0.0;
+    area2Box.pose.orientation.z = 0.0; 
+    area2Box.pose.orientation.w = 1.0;
+    area2Box.scale.x = lidarParam.areaScaleX[2];
+    area2Box.scale.y = lidarParam.areaScaleY[2];
+    area2Box.scale.z = lidarParam.areaScaleZ[2];
+
+    area2Box.color.r = 0.5f;
+    area2Box.color.g = 1.0f;    
+    area2Box.color.b = 0.0f;
+    area2Box.color.a = 0.3f;
+
+	lidarParam.x_min[2] = lidarParam.areaPosX[2], lidarParam.x_max[2] = lidarParam.areaPosX[2] + lidarParam.areaScaleX[2];
+	lidarParam.y_min[2] = lidarParam.areaPosY[2] - lidarParam.areaScaleY[2] / 2.0, lidarParam.y_max[2] = lidarParam.areaPosY[2] + lidarParam.areaScaleY[2] / 2.0;
+	lidarParam.z_min[2] = lidarParam.areaPosZ[2] - lidarParam.areaScaleZ[2] / 2.0, lidarParam.z_max[2] = lidarParam.areaPosZ[2] + lidarParam.areaScaleZ[2] / 2.0;
+
+
+	//area3box	
+	area3Box.header.frame_id = lidarParam.publishName;
+    area3Box.ns = "Markers_Box_" + std::to_string(3);
+    area3Box.id = 3;
+    area3Box.type = visualization_msgs::msg::Marker::CUBE;
+    area3Box.action = visualization_msgs::msg::Marker::ADD;
+	area3Box.pose.position.x = lidarParam.areaScaleX[3] / 2.0 + lidarParam.areaPosX[3];
+	area3Box.pose.position.y = lidarParam.areaPosY[3];
+	area3Box.pose.position.z = lidarParam.areaPosZ[3];
+    area3Box.pose.orientation.x = 0.0;
+    area3Box.pose.orientation.y = 0.0;
+    area3Box.pose.orientation.z = 0.0; 
+    area3Box.pose.orientation.w = 1.0;
+    area3Box.scale.x = lidarParam.areaScaleX[3];
+    area3Box.scale.y = lidarParam.areaScaleY[3];
+    area3Box.scale.z = lidarParam.areaScaleZ[3];
+
+    area3Box.color.r = 0.0f;
+    area3Box.color.g = 1.0f;    
+    area3Box.color.b = 0.0f;
+    area3Box.color.a = 0.3f;
+
+	lidarParam.x_min[3] = lidarParam.areaPosX[3], lidarParam.x_max[3] = lidarParam.areaPosX[3] + lidarParam.areaScaleX[3];
+	lidarParam.y_min[3] = lidarParam.areaPosY[3] - lidarParam.areaScaleY[3] / 2.0, lidarParam.y_max[3] = lidarParam.areaPosY[3] + lidarParam.areaScaleY[3] / 2.0;
+	lidarParam.z_min[3] = lidarParam.areaPosZ[3] - lidarParam.areaScaleZ[3] / 2.0, lidarParam.z_max[3] = lidarParam.areaPosZ[3] + lidarParam.areaScaleZ[3] / 2.0;
+
+
+	
 }
 
 
 void roboscanPublisher::setParameters()
 {
-
 	printf("setParameters\n");
 	interface.setIpAddr( lidarParam.ipAddr, lidarParam.netMask, lidarParam.gwAddr);
 	interface.stopStream();
@@ -684,6 +1418,13 @@ void roboscanPublisher::setParameters()
 	interface.setAdcOverflowSaturation(lidarParam.bAdcOverflow, lidarParam.bSaturation);
 	interface.setGrayscaleIlluminationMode(lidarParam.grayscaleIlluminationMode);
 	interface.setDualBeam(lidarParam.dualBeam, true);
+
+
+	area0Box.header.frame_id = lidarParam.publishName;
+	area1Box.header.frame_id = lidarParam.publishName;
+	area2Box.header.frame_id = lidarParam.publishName;
+	area3Box.header.frame_id = lidarParam.publishName;
+
 
 	if(lidarParam.frequencyModulation == 0) lidarParam.modIndex = 1;
 	else if(lidarParam.frequencyModulation == 1)  lidarParam.modIndex = 0;
@@ -702,6 +1443,7 @@ void roboscanPublisher::setParameters()
 	}
 	lidarParam.cvShow = false;
 	lidarParam.pointCloudEdgeFilter = false;
+	
 	printf("setParameters OK\n");
 
 }
@@ -1168,10 +1910,8 @@ void roboscanPublisher::publishFrame(Frame *frame)
 	cv::Mat dcs4(frame->height, frame->width, CV_8UC3, Scalar(255, 255, 255));
 
 	if(frame->dataType == Frame::DISTANCE || frame->dataType == Frame::DISTANCE_AMPLITUDE || frame->dataType == Frame::DISTANCE_GRAYSCALE || frame->dataType == Frame::DISTANCE_AMPLITUDE_GRAYSCALE ){
-		sensor_msgs::msg::Image imgDistance;
-
 		imgDistance.header.stamp = data_stamp;
-		imgDistance.header.frame_id = "roboscan_frame";
+		imgDistance.header.frame_id = lidarParam.publishName;
 		imgDistance.height = static_cast<uint32_t>(frame->height);
 		imgDistance.width = static_cast<uint32_t>(frame->width);
 		imgDistance.encoding = sensor_msgs::image_encodings::MONO16;
@@ -1182,10 +1922,8 @@ void roboscanPublisher::publishFrame(Frame *frame)
 	}
 
 	if(frame->dataType == Frame::DISTANCE_AMPLITUDE || frame->dataType == Frame::DISTANCE_AMPLITUDE_GRAYSCALE){
-		sensor_msgs::msg::Image imgAmpl;
-
 		imgAmpl.header.stamp = data_stamp;
-		imgAmpl.header.frame_id = "roboscan_frame";
+		imgAmpl.header.frame_id = lidarParam.publishName;
 		imgAmpl.height = static_cast<uint32_t>(frame->height);
 		imgAmpl.width = static_cast<uint32_t>(frame->width);
 		imgAmpl.encoding = sensor_msgs::image_encodings::MONO16;
@@ -1196,11 +1934,8 @@ void roboscanPublisher::publishFrame(Frame *frame)
 	}
 
 	if(frame->dataType == Frame::GRAYSCALE || frame->dataType == Frame::DISTANCE_GRAYSCALE || frame->dataType == Frame::DISTANCE_AMPLITUDE_GRAYSCALE){
-		sensor_msgs::msg::Image imgGray;
-
-
 		imgGray.header.stamp = data_stamp;
-		imgGray.header.frame_id = "roboscan_frame";
+		imgGray.header.frame_id = lidarParam.publishName;
 		imgGray.height = static_cast<uint32_t>(frame->height);
 		imgGray.width = static_cast<uint32_t>(frame->width);
 		imgGray.encoding = sensor_msgs::image_encodings::MONO16;
@@ -1211,10 +1946,8 @@ void roboscanPublisher::publishFrame(Frame *frame)
 	}
 
 	if(frame->dataType == Frame::DCS){
-		sensor_msgs::msg::Image imgDCS;
-
 		imgDCS.header.stamp = data_stamp;
-		imgDCS.header.frame_id = "roboscan_frame";
+		imgDCS.header.frame_id = lidarParam.publishName;
 		imgDCS.height = static_cast<uint32_t>(frame->height) * 4;
 		imgDCS.width = static_cast<uint32_t>(frame->width);
 		imgDCS.encoding = sensor_msgs::image_encodings::MONO16;
@@ -1256,8 +1989,8 @@ void roboscanPublisher::publishFrame(Frame *frame)
 	else
 	{
 		const size_t nPixel = frame->width * frame->height;
-		pcl::PointCloud<pcl::PointXYZI>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZI>());
-		cloud->header.frame_id = "roboscan_frame";
+		cloud = pcl::PointCloud<pcl::PointXYZI>::Ptr(new pcl::PointCloud<pcl::PointXYZI>);
+		cloud->header.frame_id = lidarParam.publishName;
 		cloud->header.stamp = pcl_conversions::toPCL(data_stamp);
 		cloud->width = static_cast<uint32_t>(frame->width);
 		cloud->height = static_cast<uint32_t>(frame->height);
@@ -1270,6 +2003,11 @@ void roboscanPublisher::publishFrame(Frame *frame)
 		double px, py, pz;
 
 		RGB888Pixel pTex1;
+
+		lidarParam.pointCount[0] = 0;
+		lidarParam.pointCount[1] = 0;
+		lidarParam.pointCount[2] = 0;
+		lidarParam.pointCount[3] = 0;
 
 
 		for(k=0, l=0, y=0; y< frame->height; y++)
@@ -1369,15 +2107,101 @@ void roboscanPublisher::publishFrame(Frame *frame)
 					p.intensity = std::numeric_limits<float>::quiet_NaN();
 				}		  
 
+				//data check
+				// area0
+				if (lidarParam.areaBtn[0]) {
+					if (p.x >= lidarParam.x_min[0] && p.x <= lidarParam.x_max[0] &&
+						p.y >= lidarParam.y_min[0] && p.y <= lidarParam.y_max[0] &&
+						p.z >= lidarParam.z_min[0] && p.z <= lidarParam.z_max[0]) 
+					{
+						lidarParam.pointCount[0]++;
+					}	
+					if(lidarParam.pointCount[0] > lidarParam.minPoint[0])
+						lidarParam.pointDetect[0] = true;
+					else
+						lidarParam.pointDetect[0] = false; 
+				}
+
+				// area1
+				if (lidarParam.areaBtn[1]) {
+					if (p.x >= lidarParam.x_min[1] && p.x <= lidarParam.x_max[1] &&
+						p.y >= lidarParam.y_min[1] && p.y <= lidarParam.y_max[1] &&
+						p.z >= lidarParam.z_min[1] && p.z <= lidarParam.z_max[1]) 
+					{
+						lidarParam.pointCount[1]++;
+					}
+					if(lidarParam.pointCount[1] > lidarParam.minPoint[1])
+						lidarParam.pointDetect[1] = true;
+					else
+						lidarParam.pointDetect[1] = false; 
+				}
+
+				// area2
+				if (lidarParam.areaBtn[2]) {
+					if (p.x >= lidarParam.x_min[2] && p.x <= lidarParam.x_max[2] &&
+						p.y >= lidarParam.y_min[2] && p.y <= lidarParam.y_max[2] &&
+						p.z >= lidarParam.z_min[2] && p.z <= lidarParam.z_max[2]) 
+					{
+						lidarParam.pointCount[2]++;
+					}
+					if(lidarParam.pointCount[2] > lidarParam.minPoint[2])
+						lidarParam.pointDetect[2] = true;
+					else
+						lidarParam.pointDetect[2] = false; 
+				}
+
+				// area3
+				if (lidarParam.areaBtn[3]) {
+					if (p.x >= lidarParam.x_min[3] && p.x <= lidarParam.x_max[3] &&
+						p.y >= lidarParam.y_min[3] && p.y <= lidarParam.y_max[3] &&
+						p.z >= lidarParam.z_min[3] && p.z <= lidarParam.z_max[3]) 
+					{
+						lidarParam.pointCount[3]++;
+					}
+					if(lidarParam.pointCount[3] > lidarParam.minPoint[3])
+						lidarParam.pointDetect[3] = true;
+					else
+						lidarParam.pointDetect[3] = false; 
+				}
+
 			}
+
 		}
 
-
-		sensor_msgs::msg::PointCloud2 msg;
 		pcl::toROSMsg(*cloud, msg);
+
 		msg.header.stamp = data_stamp;
-		msg.header.frame_id = "roboscan_frame";
+		msg.header.frame_id = lidarParam.publishName;
 		pointcloudPub->publish(msg);  
+		area0Pub->publish(area0Box);
+		area1Pub->publish(area1Box);
+		area2Pub->publish(area2Box);
+		area3Pub->publish(area3Box);
+
+        customMessage.header.frame_id = "roboscan_frame";	
+        customMessage.header.stamp = data_stamp;
+        customMessage.area0 = lidarParam.pointDetect[0];
+        customMessage.point0 = lidarParam.pointCount[0];
+
+        customMessage.area1 = lidarParam.pointDetect[1];
+        customMessage.point1 = lidarParam.pointCount[1];
+
+        customMessage.area2 = lidarParam.pointDetect[2];
+        customMessage.point2 = lidarParam.pointCount[2];
+
+        customMessage.area3 = lidarParam.pointDetect[3];    
+        customMessage.point3 = lidarParam.pointCount[3];       
+		
+		areaMsgpub->publish(customMessage);
+	
+		
+
+		
+		if(lidarParam.paramLoad)
+		{
+			paramLoad();	
+		}
+		
 	}
 	
 	getMouseEvent(mouseXpos, mouseYpos);
@@ -1417,9 +2241,9 @@ void roboscanPublisher::publishFrame(Frame *frame)
 //	std::chrono::milliseconds timeCnt = std::chrono::duration_cast<std::chrono::milliseconds>(update_end - update_start);
 //	printf("update-color time = %ld ms\n", timeCnt.count());
 #ifdef image_transfer_function
-	cv_bridge::CvImagePtr cv_ptr(new cv_bridge::CvImage);
+    cv_ptr = cv_bridge::CvImagePtr(new cv_bridge::CvImage);
 	cv_ptr->header.stamp = data_stamp;
-	cv_ptr->header.frame_id = "roboscan_frame";
+	cv_ptr->header.frame_id = lidarParam.publishName;
 	cv_ptr->image = dcs1;
 	cv_ptr->encoding = "bgr8";
 

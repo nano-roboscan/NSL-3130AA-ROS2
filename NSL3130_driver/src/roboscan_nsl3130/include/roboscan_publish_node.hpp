@@ -9,6 +9,7 @@
 #include "std_msgs/msg/string.hpp"
 #include <sensor_msgs/msg/point_cloud2.hpp>
 #include <pcl_conversions/pcl_conversions.h>
+#include "visualization_msgs/msg/marker.hpp"
 #include <opencv2/opencv.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/core/core.hpp>
@@ -27,7 +28,7 @@
 #define image_transfer_function
 
 #ifdef image_transfer_function
-#include <image_transport/image_transport.h>
+#include <image_transport/image_transport.hpp>
 #endif
 
 namespace nanosys {
@@ -85,6 +86,33 @@ namespace nanosys {
 		bool changedIpInfo = false;
 
 		int maxDistance;
+
+		//Create Var
+		bool paramSave = false;
+		bool paramLoad = true;
+		bool areaBtn[4];
+
+		double areaScaleX[4];
+		double areaScaleY[4];
+		double areaScaleZ[4];
+
+		double areaPosX[4];
+		double areaPosY[4];
+		double areaPosZ[4];
+
+		int pointCount[4];
+
+		bool pointDetect[4];
+
+		double x_min[4];
+		double x_max[4];
+		double y_min[4];
+		double y_max[4];
+		double z_min[4];
+		double z_max[4];
+
+		int minPoint[4];
+		std::string publishName;
     };
 
    	typedef struct _RGB888Pixel
@@ -127,6 +155,7 @@ namespace nanosys {
 		void setAmplitudeColor(cv::Mat &imageLidar, int x, int y, int value, double end_range );
 		void startStreaming();
 
+
 		boost::signals2::connection connectionFrames;
 		boost::signals2::connection connectionCameraInfo;
 
@@ -145,6 +174,13 @@ namespace nanosys {
 		rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr imgGrayPub;
 		rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr imgDCSPub;	
 		rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pointcloudPub;
+		//create area pub
+		rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr area0Pub;
+		rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr area1Pub;
+		rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr area2Pub;
+		rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr area3Pub;
+
+		rclcpp::Publisher<roboscan_nsl3130::msg::CustomMsg>::SharedPtr areaMsgpub;
 
 #ifdef image_transfer_function
 		rclcpp::Node::SharedPtr nodeHandle;
@@ -167,12 +203,31 @@ namespace nanosys {
 		cv::Mat addDistanceInfo(cv::Mat distMat, Frame *frame);
 		cv::Mat addDCSInfo(cv::Mat distMat, Frame *frame);
 		void setWinName();
+		void paramDump(const std::string & filename);
+		void paramLoad();
 		OnSetParametersCallbackHandle::SharedPtr callback_handle_;
 		rcl_interfaces::msg::SetParametersResult parametersCallback( const std::vector<rclcpp::Parameter> &parameters);
 		int mouseXpos, mouseYpos;
 		bool reconfigure;
 		char winName[100];
-	};
+
+		sensor_msgs::msg::Image imgDistance;
+		sensor_msgs::msg::Image imgAmpl;
+		sensor_msgs::msg::Image imgGray;
+		sensor_msgs::msg::Image imgDCS;
+		sensor_msgs::msg::PointCloud2 msg;
+		cv_bridge::CvImagePtr cv_ptr;
+		pcl::PointCloud<pcl::PointXYZI>::Ptr cloud;
+
+		//create area marker
+		visualization_msgs::msg::Marker area0Box;
+		visualization_msgs::msg::Marker area1Box;
+		visualization_msgs::msg::Marker area2Box;
+		visualization_msgs::msg::Marker area3Box;
+
+
+		roboscan_nsl3130::msg::CustomMsg customMessage;
+};
 
 
 } //end namespace nanosys

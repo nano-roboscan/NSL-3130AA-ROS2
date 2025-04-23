@@ -18,6 +18,7 @@ find_package(PCL REQUIRED)
 
 find_package(pcl_conversions REQUIRED)
 find_package(sensor_msgs REQUIRED)
+find_package(visualization_msgs REQUIRED)
 find_package(Eigen REQUIRED)
 find_package(Boost REQUIRED COMPONENTS system)
 find_package(Boost REQUIRED COMPONENTS system thread)
@@ -33,7 +34,14 @@ find_package(eigen3_cmake_module REQUIRED)
 find_package(Eigen3)
 find_package(OpenCV REQUIRED)
 find_package(PCL REQUIRED COMPONENTS common io)
+find_package(rosidl_default_generators REQUIRED)
 
+
+
+rosidl_generate_interfaces(${PROJECT_NAME}
+  "msg/CustomMsg.msg"
+  DEPENDENCIES std_msgs
+)
 
 link_directories(${PCL_LIBRARY_DIRS})
 #add_definition($PCL_DEFINITIONS})
@@ -43,6 +51,7 @@ ${PCL_INCLUDE_DIRS}
 ${Boost_INCLUDE_DIRS} 
 ${OpenCV_INCLUDE_DIRS}
 ${Eigen_INCLUDE_DIRS})
+
 
 
 
@@ -59,9 +68,15 @@ target_include_directories(roboscan_publish_node PUBLIC
   $<INSTALL_INTERFACE:include>)
 target_compile_features(roboscan_publish_node PUBLIC c_std_99 cxx_std_17)  # Require C99 and C++17
 
+rosidl_get_typesupport_target(cpp_typesupport_target
+  ${PROJECT_NAME} "rosidl_typesupport_cpp")
+
+target_link_libraries(roboscan_publish_node
+  ${cpp_typesupport_target})
 
 ament_target_dependencies(roboscan_publish_node
   sensor_msgs
+  visualization_msgs
   rclcpp
   std_msgs
   cv_bridge
@@ -69,6 +84,7 @@ ament_target_dependencies(roboscan_publish_node
   Eigen3
   OpenCV
   image_transport
+  rosidl_default_runtime
 )
 
 target_link_libraries(roboscan_publish_node 
@@ -100,5 +116,7 @@ if(BUILD_TESTING)
 endif()
 set(CMAKE_BUILD_TYPE Release)
 
+
+ament_export_dependencies(rosidl_default_runtime)
 ament_export_include_directories(include) 
 ament_package()

@@ -128,4 +128,5 @@ bool TcpConnection::isDisconnected() const {
   return state == STATE_DISCONNECTED;
 }
 
+
 } // end namespace nanosys
