@@ -36,9 +36,16 @@ namespace nanosys {
 	struct SetParameter {
 	
         uint16_t imageType;
+		bool FormatMono16;
+		bool FormatMono8;
+		bool Format16UC1;
+		bool FormatRGB8;	
+		bool FormatChange;	
         uint16_t lensType;
         uint16_t old_lensType;
         
+		std::string selected_format;
+
 		bool startStream;
 		bool publishPointCloud;
 		bool cartesian;
@@ -154,6 +161,10 @@ namespace nanosys {
 		void setGrayscaleColor(cv::Mat &imageLidar, int x, int y, int value, double end_range );
 		void setAmplitudeColor(cv::Mat &imageLidar, int x, int y, int value, double end_range );
 		void startStreaming();
+
+		void ImageFormatChange();
+
+		int AmplitudeColor24( float fValue, RGB888Pixel &nRGBData, const std::vector<cv::Vec3b> &colorVector, float fMaxValue);
 
 
 		boost::signals2::connection connectionFrames;

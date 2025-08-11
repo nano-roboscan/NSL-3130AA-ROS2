@@ -229,6 +229,8 @@ rcl_interfaces::msg::SetParametersResult roboscanPublisher::parametersCallback( 
 	result.reason = "success";
 	// Here update class attributes, do some actions, etc.
 
+
+
 	for (const auto &param: parameters)
 	{
 		if (param.get_name() == "B. lensType")
@@ -243,6 +245,7 @@ rcl_interfaces::msg::SetParametersResult roboscanPublisher::parametersCallback( 
 				lidarParam.changedCvShow = true;
 			}
 		}
+		
 		else if (param.get_name() == "D. hdr_mode")
 		{
 			lidarParam.hdr_mode = param.as_int();
@@ -429,6 +432,41 @@ rcl_interfaces::msg::SetParametersResult roboscanPublisher::parametersCallback( 
 		{
 			lidarParam.publishName = param.as_string();
 		}
+
+		else if (param.get_name() == "2-1. image Format Mono16")
+		{
+			lidarParam.FormatMono16 = param.as_bool();
+			if (param.as_bool())
+			{
+				lidarParam.selected_format = "2-1. image Format Mono16";
+			}
+
+		}
+		else if (param.get_name() == "2-2. image Format Mono8")
+		{
+			lidarParam.FormatMono8 = param.as_bool();
+			if (param.as_bool())
+			{
+				lidarParam.selected_format = "2-2. image Format Mono8";
+			}
+
+		}
+		else if (param.get_name() == "2-3. image Format 16UC1")
+		{
+			lidarParam.Format16UC1 = param.as_bool();
+			if (param.as_bool())
+			{
+				lidarParam.selected_format = "2-3. image Format 16UC1";
+			}
+		}
+		else if (param.get_name() == "2-4. image Format RGB8")
+		{
+			lidarParam.FormatRGB8 = param.as_bool();
+			if (param.as_bool())
+			{
+				lidarParam.selected_format = "2-4. image Format RGB8";
+			}
+		}
 		// Area 0
 		else if (param.get_name() == "area0. Enabled")
 		{
@@ -566,7 +604,8 @@ rcl_interfaces::msg::SetParametersResult roboscanPublisher::parametersCallback( 
 		}
 
 	}
- 
+
+	lidarParam.FormatChange = true;
 	reconfigure = true;
 	return result;
 }
@@ -575,6 +614,7 @@ rcl_interfaces::msg::SetParametersResult roboscanPublisher::parametersCallback( 
 void roboscanPublisher::paramDump(const std::string & filename)
 {
 	lidarParam.paramSave = true;
+
     std::string package_path = ament_index_cpp::get_package_share_directory("roboscan_nsl3130");
 
     std::string full_path = package_path + "/" + filename;
@@ -795,9 +835,6 @@ void roboscanPublisher::setReconfigure()
 		lidarParam.pointDetect[0] = false;
 	}
 
-
-
-
 	//startStream = true;
 	printf("setReconfigure OK!\n\n");
 	waitKey(1);
@@ -858,6 +895,10 @@ void roboscanPublisher::initialise()
 
 	//defalut
 	lidarParam.lensType = 2;
+	lidarParam.FormatMono16 = true;
+	lidarParam.FormatMono8 = false;
+	lidarParam.Format16UC1 = false;
+	lidarParam.FormatRGB8 = false;
 	lidarParam.lensCenterOffsetX = 0;
 	lidarParam.lensCenterOffsetY = 0;
 	lidarParam.startStream = false;
@@ -898,6 +939,7 @@ void roboscanPublisher::initialise()
 	lidarParam.netMask = "255.255.255.0";
 	lidarParam.gwAddr = "192.168.0.1";
 	lidarParam.publishName = "roboscan_frame";
+	lidarParam.selected_format = "2-1. image Format Mono16";
 	lidarParam.maxDistance = 12500;
 
 	lidarParam.paramSave = false;
@@ -944,10 +986,22 @@ void roboscanPublisher::initialise()
 	lidarParam.minPoint[2] = 80;
 	lidarParam.minPoint[3] = 80;
 
+	
+	rcl_interfaces::msg::ParameterDescriptor descriptor;
+	descriptor.description = "Log level for the node";
+	descriptor.additional_constraints = "\n0,Low\n1,Medium\n2,High";
+	
+	this->declare_parameter<int>("log_level", 1, descriptor);
+
+
 	this->declare_parameter<string>("0. IP Addr", lidarParam.ipAddr);
 //	this->declare_parameter<string>("1. Net Mask", lidarParam.netMask);
 //	this->declare_parameter<string>("2. GW Addr", lidarParam.gwAddr);
     this->declare_parameter<string>("1. Frame Id", lidarParam.publishName);
+	this->declare_parameter<bool>("2-1. image Format Mono16", lidarParam.FormatMono16); 
+	this->declare_parameter<bool>("2-2. image Format Mono8", lidarParam.FormatMono8); 
+	this->declare_parameter<bool>("2-3. image Format 16UC1", lidarParam.Format16UC1); 
+	this->declare_parameter<bool>("2-4. image Format RGB8", lidarParam.FormatRGB8); 
 
 	this->declare_parameter<uint16_t>("B. lensType", lidarParam.lensType);
 	this->declare_parameter<uint16_t>("C. imageType", lidarParam.imageType);
@@ -981,7 +1035,7 @@ void roboscanPublisher::initialise()
 	this->declare_parameter<bool>("Y. PointColud EDGE", lidarParam.pointCloudEdgeFilter);
 	this->declare_parameter<int>("Z. MaxDistance", lidarParam.maxDistance);
 
-	
+
 	// Area 0
 	this->declare_parameter<bool>("area0. Enabled", lidarParam.areaBtn[0]);
 	this->declare_parameter<int>("area0. minimum_detection_point", lidarParam.minPoint[0]);
@@ -1035,6 +1089,11 @@ void roboscanPublisher::initialise()
 
 	this->get_parameter_or<std::string>("0. IP Addr", lidarParam.ipAddr, "192.168.0.220");
 	//this->get_parameter_or<std::string>("1. Frame Id", lidarParam.publishName, "roboscan_frame");
+	this->get_parameter_or<bool>("2-1. image Format Mono16", lidarParam.FormatMono16, true); 
+	this->get_parameter_or<bool>("2-2. image Format Mono8", lidarParam.FormatMono8, false); 
+	this->get_parameter_or<bool>("2-3. image Format 16UC1", lidarParam.Format16UC1, false); 
+	this->get_parameter_or<bool>("2-4. image Format RGB8", lidarParam.FormatRGB8, false); 
+
 	this->get_parameter_or<uint16_t>("B. lensType", lidarParam.lensType, 2);
 	this->get_parameter_or<uint16_t>("C. imageType",  lidarParam.imageType, 2);
 	this->get_parameter_or<uint16_t>("D. hdr_mode", lidarParam.hdr_mode, 0); //0 - hdr off, 1 - hdr spatial, 2 - hdr temporal
@@ -1064,7 +1123,7 @@ void roboscanPublisher::initialise()
 	this->get_parameter_or<bool>("Y. PointColud EDGE", lidarParam.pointCloudEdgeFilter, false);
 	this->get_parameter_or<int>("Z. MaxDistance", lidarParam.maxDistance, 12500);
 
-		
+
 	// Area 0
 	this->get_parameter_or<bool>("area0. Enabled", lidarParam.areaBtn[0], true);
 	this->get_parameter_or<int>("area0. minimum_detection_point", lidarParam.minPoint[0], 80);
@@ -1120,6 +1179,10 @@ void roboscanPublisher::initialise()
 	rclcpp::Parameter FrameID("1. Frame Id", lidarParam.publishName);
 //	rclcpp::Parameter pNetMask("1. Net Mask", lidarParam.netMask);
 //	rclcpp::Parameter pGWAddr("2. GW Addr", lidarParam.gwAddr);
+	rclcpp::Parameter pimageFormatMono16("2-1. image Format Mono16", lidarParam.FormatMono16); 
+	rclcpp::Parameter pimageFormatMono8("2-2. image Format Mono8", lidarParam.FormatMono8); 
+	rclcpp::Parameter pimageFormat16UC1("2-3. image Format 16UC1", lidarParam.Format16UC1); 
+	rclcpp::Parameter pimageFormatRGB8("2-4. image Format RGB8", lidarParam.FormatRGB8); 
 
 	rclcpp::Parameter pLensType("B. lensType", lidarParam.lensType);
 	rclcpp::Parameter pImageType("C. imageType", lidarParam.imageType);
@@ -1152,7 +1215,6 @@ void roboscanPublisher::initialise()
 	rclcpp::Parameter pGrayLED("X. grayscale LED", lidarParam.grayscaleIlluminationMode);
 	rclcpp::Parameter pPCEdgeFilter("Y. PointColud EDGE", lidarParam.pointCloudEdgeFilter);
 	rclcpp::Parameter pMaxDistance("Z. MaxDistance", lidarParam.maxDistance);
-
 
 	// Area 0 parameter
 	rclcpp::Parameter area0btn("area0. Enabled", lidarParam.areaBtn[0]);
@@ -1209,6 +1271,12 @@ void roboscanPublisher::initialise()
 //	this->set_parameter(pNetMask);
 //	this->set_parameter(pGWAddr);
 
+	this->set_parameter(pimageFormatMono16);
+	this->set_parameter(pimageFormatMono8);
+	this->set_parameter(pimageFormat16UC1);
+	this->set_parameter(pimageFormatRGB8);
+
+
 	this->set_parameter(pLensType);
 	this->set_parameter(pImageType);
 	this->set_parameter(pHdr_mode);
@@ -1240,7 +1308,6 @@ void roboscanPublisher::initialise()
 	this->set_parameter(pGrayLED);
 	this->set_parameter(pPCEdgeFilter);
 	this->set_parameter(pMaxDistance);
-
 
 	// Area 0
 	this->set_parameter(area0btn);
@@ -1289,7 +1356,6 @@ void roboscanPublisher::initialise()
 	connectionCameraInfo = interface.subscribeCameraInfo([&](std::shared_ptr<CameraInfo> ci) -> void { updateCameraInfo(ci); });
 	connectionFrames = interface.subscribeFrame([&](Frame* f) -> void {  updateFrame(f); });
 	cartesianTransform.initLensTransform(sensorPixelSizeMM, width, height, lidarParam.lensCenterOffsetX, lidarParam.lensCenterOffsetY, lidarParam.lensType); //0.02 mm - sensor pixel size
-
 
 	//area0box
     area0Box.header.frame_id = lidarParam.publishName;
@@ -1625,6 +1691,59 @@ void roboscanPublisher::setAmplitudeColor(cv::Mat &imageLidar, int x, int y, int
 
 }
 
+int roboscanPublisher::AmplitudeColor24( float fValue, RGB888Pixel &nRGBData, const std::vector<cv::Vec3b> &colorVector, float fMaxValue)
+{
+	if(fValue == ADC_OVERFLOW)
+	{
+		nRGBData.r = 169;//R
+		nRGBData.g = 14;//G
+		nRGBData.b = 255;//B
+	}
+	else if(fValue == SATURATION)
+	{
+		nRGBData.r = 255;//R
+		nRGBData.g = 0;//G
+		nRGBData.b = 128;//B
+	}
+	else if(fValue == INTERFERENCE || fValue == LOW_AMPLITUDE || fValue == EDGE_FILTERED )
+	{
+		nRGBData.r = 0;//R
+		nRGBData.g = 0;//G
+		nRGBData.b = 0;//B
+	}
+	else if(fValue == 0) //Invalide Pixel
+	{
+		nRGBData.r = 0;//R
+		nRGBData.g = 0;//G
+		nRGBData.b = 0;//B
+	}
+	else if(fValue < 0)
+	{
+		nRGBData.r = 0;//R
+		nRGBData.g = 0;//G
+		nRGBData.b = 0;//B
+	}
+	else if(fValue > fMaxValue)
+	{
+		nRGBData.r = 0;//R
+		nRGBData.g = 0;//G
+		nRGBData.b = 0;//B
+	}
+	else
+    {
+        int index = static_cast<int>(fValue * (colorVector.size() / fMaxValue));
+
+        if (index < 0) index = 0;
+        if (index >= static_cast<int>(colorVector.size())) index = colorVector.size() - 1;
+
+        const cv::Vec3b &bgr = colorVector.at(index);
+        nRGBData.r = bgr[2];
+        nRGBData.g = bgr[1];
+        nRGBData.b = bgr[0];
+    }
+	return true;
+}
+
 
 void roboscanPublisher::setGrayscaleColor(cv::Mat &imageLidar, int x, int y, int value, double end_range )
 {   
@@ -1896,6 +2015,31 @@ bool roboscanPublisher::edgeDetection(Triple const& v0, Triple const& v1, Triple
         return false;
 }
 
+
+void roboscanPublisher::ImageFormatChange()
+{
+
+	if (lidarParam.FormatChange)
+	{
+		lidarParam.FormatMono16 = (lidarParam.selected_format == "2-1. image Format Mono16");
+		lidarParam.FormatMono8  = (lidarParam.selected_format == "2-2. image Format Mono8");
+		lidarParam.Format16UC1  = (lidarParam.selected_format == "2-3. image Format 16UC1");
+		lidarParam.FormatRGB8   = (lidarParam.selected_format == "2-4. image Format RGB8");
+	
+		// 3. 파라미터 상태를 한번에 반영 (UI 업데이트)
+		this->set_parameters({
+			rclcpp::Parameter("2-1. image Format Mono16", lidarParam.FormatMono16),
+			rclcpp::Parameter("2-2. image Format Mono8",  lidarParam.FormatMono8),
+			rclcpp::Parameter("2-3. image Format 16UC1",  lidarParam.Format16UC1),
+			rclcpp::Parameter("2-4. image Format RGB8",   lidarParam.FormatRGB8)
+		});
+	
+		lidarParam.FormatChange = false;
+	} 
+
+}
+
+
 void roboscanPublisher::publishFrame(Frame *frame)
 {
 	int x, y, k, l, pc;
@@ -1909,28 +2053,188 @@ void roboscanPublisher::publishFrame(Frame *frame)
 	cv::Mat dcs3(frame->height, frame->width, CV_8UC3, Scalar(255, 255, 255));	// garycale
 	cv::Mat dcs4(frame->height, frame->width, CV_8UC3, Scalar(255, 255, 255));
 
+	if (!lidarParam.FormatMono16 && !lidarParam.FormatMono8 && !lidarParam.Format16UC1 && !lidarParam.FormatRGB8)
+    {
+		lidarParam.FormatChange = true;
+		lidarParam.selected_format = "2-1. image Format Mono16";
+		ImageFormatChange();
+    }
+
+
 	if(frame->dataType == Frame::DISTANCE || frame->dataType == Frame::DISTANCE_AMPLITUDE || frame->dataType == Frame::DISTANCE_GRAYSCALE || frame->dataType == Frame::DISTANCE_AMPLITUDE_GRAYSCALE ){
-		imgDistance.header.stamp = data_stamp;
-		imgDistance.header.frame_id = lidarParam.publishName;
-		imgDistance.height = static_cast<uint32_t>(frame->height);
-		imgDistance.width = static_cast<uint32_t>(frame->width);
-		imgDistance.encoding = sensor_msgs::image_encodings::MONO16;
-		imgDistance.step = imgDistance.width * frame->px_size;
-		imgDistance.is_bigendian = 0;
-		imgDistance.data = frame->distData;
-		imgDistancePub->publish(imgDistance);
+		if(lidarParam.FormatMono8) //mono 8
+		{	
+
+			ImageFormatChange();
+
+			imgDistance.header.stamp = data_stamp;
+			imgDistance.header.frame_id = lidarParam.publishName;
+			imgDistance.height = static_cast<uint32_t>(frame->height);
+			imgDistance.width = static_cast<uint32_t>(frame->width);
+			imgDistance.encoding = sensor_msgs::image_encodings::MONO8;
+			imgDistance.step = imgDistance.width * 1;
+			imgDistance.is_bigendian = 0;
+
+			const size_t nPixel = frame->width * frame->height;
+			uint16_t distance = 0;
+			imgDistance.data.resize(nPixel);
+
+			for (size_t i = 0, l = 0; i < nPixel; ++i, l += 2) {
+				distance = (frame->distData[l + 1] << 8) | frame->distData[l];
+				imgDistance.data[i] = static_cast<uint8_t>(distance >> 8);
+			}
+
+			/* 정규화
+			for (size_t i = 0, l = 0; i < nPixel; ++i, l += 2) {
+				distance = (frame->distData[l + 1] << 8) + frame->distData[l];
+				uint8_t data_value = static_cast<uint8_t>(std::min(255.0, (distance / (double)lidarParam.maxDistance) * 255.0));
+				imgDistance.data[i] = data_value;
+			}
+			*/
+
+			imgDistancePub->publish(imgDistance);
+		}
+		else if(lidarParam.Format16UC1) //16UC1
+		{
+			ImageFormatChange();
+
+			imgDistance.header.stamp = data_stamp;
+			imgDistance.header.frame_id = lidarParam.publishName;
+			imgDistance.height = static_cast<uint32_t>(frame->height);
+			imgDistance.width = static_cast<uint32_t>(frame->width);
+			imgDistance.encoding = sensor_msgs::image_encodings::TYPE_16UC1;
+			imgDistance.step = imgDistance.width * frame->px_size;
+			imgDistance.is_bigendian = 0;
+			imgDistance.data = frame->distData;
+			imgDistancePub->publish(imgDistance);
+		}
+		else if(lidarParam.FormatRGB8) //RGB8
+		{		
+			ImageFormatChange();
+
+			imgDistance.header.stamp = data_stamp;
+			imgDistance.header.frame_id = lidarParam.publishName;
+			imgDistance.height = static_cast<uint32_t>(frame->height);
+			imgDistance.width = static_cast<uint32_t>(frame->width);
+			imgDistance.encoding = sensor_msgs::image_encodings::RGB8;
+			imgDistance.step = imgDistance.width * 3;  // RGB8은 3바이트 per pixel
+			imgDistance.is_bigendian = 0;
+
+			const size_t nPixel = frame->width * frame->height;
+			uint16_t distance = 0;
+			imgDistance.data.resize(nPixel * 3);
+
+			RGB888Pixel color;
+
+			for (size_t i = 0, l = 0; i < nPixel; ++i, l += 2) {
+				distance = (frame->distData[l + 1] << 8) + frame->distData[l];
+			
+				Convert_To_RGB24((double)distance, color, 0.0f, lidarParam.maxDistance);
+			
+				imgDistance.data[3 * i + 0] = color.r; // R
+				imgDistance.data[3 * i + 1] = color.g; // G
+				imgDistance.data[3 * i + 2] = color.b; // B
+			}
+			imgDistancePub->publish(imgDistance);
+		}
+		else if(lidarParam.FormatMono16) //mono16
+		{
+			ImageFormatChange();
+
+			imgDistance.header.stamp = data_stamp;
+			imgDistance.header.frame_id = lidarParam.publishName;
+			imgDistance.height = static_cast<uint32_t>(frame->height);
+			imgDistance.width = static_cast<uint32_t>(frame->width);
+			imgDistance.encoding = sensor_msgs::image_encodings::MONO16;
+			imgDistance.step = imgDistance.width * frame->px_size;
+			imgDistance.is_bigendian = 0;
+			imgDistance.data = frame->distData;
+			imgDistancePub->publish(imgDistance);
+		}
 	}
 
 	if(frame->dataType == Frame::DISTANCE_AMPLITUDE || frame->dataType == Frame::DISTANCE_AMPLITUDE_GRAYSCALE){
-		imgAmpl.header.stamp = data_stamp;
-		imgAmpl.header.frame_id = lidarParam.publishName;
-		imgAmpl.height = static_cast<uint32_t>(frame->height);
-		imgAmpl.width = static_cast<uint32_t>(frame->width);
-		imgAmpl.encoding = sensor_msgs::image_encodings::MONO16;
-		imgAmpl.step = imgAmpl.width * frame->px_size;
-		imgAmpl.is_bigendian = 0;
-		imgAmpl.data = frame->amplData;
-		imgAmplPub->publish(imgAmpl);
+		if(lidarParam.FormatMono8) //mono 8
+		{
+			imgAmpl.header.stamp = data_stamp;
+			imgAmpl.header.frame_id = lidarParam.publishName;
+			imgAmpl.height = static_cast<uint32_t>(frame->height);
+			imgAmpl.width = static_cast<uint32_t>(frame->width);
+			imgAmpl.encoding = sensor_msgs::image_encodings::MONO8;
+			imgAmpl.step = imgAmpl.width;
+			imgAmpl.is_bigendian = 0;
+
+			uint16_t amplitude = 0;
+			const size_t nPixel = frame->width * frame->height;
+			imgAmpl.data.resize(nPixel);
+
+			for (size_t i = 0, l = 0; i < nPixel; ++i, l += 2) {
+				amplitude = (frame->amplData[l+1] << 8)  + frame->amplData[l];
+				imgAmpl.data[i] = static_cast<uint8_t>(amplitude >> 8);
+			}
+
+			/* 정규화
+			for (size_t i = 0, l = 0; i < nPixel; ++i, l += 2) {
+				amplitude = (frame->amplData[l+1] << 8)  + frame->amplData[l];
+				uint8_t data_value = static_cast<uint8_t>(std::min(255.0, (amplitude / (double)2897) * 255.0));
+				imgAmpl.data[i] = data_value;
+			}
+			*/
+
+			imgAmplPub->publish(imgAmpl);
+		}
+		else if(lidarParam.Format16UC1) //16UC1
+		{
+			imgAmpl.header.stamp = data_stamp;
+			imgAmpl.header.frame_id = lidarParam.publishName;
+			imgAmpl.height = static_cast<uint32_t>(frame->height);
+			imgAmpl.width = static_cast<uint32_t>(frame->width);
+			imgAmpl.encoding = sensor_msgs::image_encodings::TYPE_16UC1;
+			imgAmpl.step = imgAmpl.width * frame->px_size;
+			imgAmpl.is_bigendian = 0;
+			imgAmpl.data = frame->amplData;
+			imgAmplPub->publish(imgAmpl);
+		}
+		else if(lidarParam.FormatRGB8) //RGB8
+		{		
+			imgAmpl.header.stamp = data_stamp;
+			imgAmpl.header.frame_id = lidarParam.publishName;
+			imgAmpl.height = static_cast<uint32_t>(frame->height);
+			imgAmpl.width = static_cast<uint32_t>(frame->width);
+			imgAmpl.encoding = sensor_msgs::image_encodings::RGB8;
+			imgAmpl.step = imgAmpl.width * 3;  // RGB8은 3바이트 per pixel
+			imgAmpl.is_bigendian = 0;
+			
+			uint16_t amplitude = 0;
+			const size_t nPixel = frame->width * frame->height;
+			imgAmpl.data.resize(nPixel * 3);
+
+			RGB888Pixel color;
+
+			for (size_t i = 0, l = 0; i < nPixel; ++i, l += 2) {
+				amplitude = (frame->amplData[l+1] << 8)  + frame->amplData[l];
+			
+				AmplitudeColor24((double)amplitude, color, colorVector, 2897.0f);
+				
+				imgAmpl.data[3 * i + 0] = color.r; // R
+				imgAmpl.data[3 * i + 1] = color.g; // G
+				imgAmpl.data[3 * i + 2] = color.b; // B
+			}
+
+			imgAmplPub->publish(imgAmpl);
+		}
+		else if(lidarParam.FormatMono16) // mono16
+		{
+			imgAmpl.header.stamp = data_stamp;
+			imgAmpl.header.frame_id = lidarParam.publishName;
+			imgAmpl.height = static_cast<uint32_t>(frame->height);
+			imgAmpl.width = static_cast<uint32_t>(frame->width);
+			imgAmpl.encoding = sensor_msgs::image_encodings::MONO16;
+			imgAmpl.step = imgAmpl.width * frame->px_size;
+			imgAmpl.is_bigendian = 0;
+			imgAmpl.data = frame->amplData;
+			imgAmplPub->publish(imgAmpl);
+		}
 	}
 
 	if(frame->dataType == Frame::GRAYSCALE || frame->dataType == Frame::DISTANCE_GRAYSCALE || frame->dataType == Frame::DISTANCE_AMPLITUDE_GRAYSCALE){
@@ -2277,3 +2581,4 @@ int main(int argc, char ** argv)
 	rclcpp::shutdown();
 	return 0;
 }
+
