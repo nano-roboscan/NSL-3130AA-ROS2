@@ -986,14 +986,6 @@ void roboscanPublisher::initialise()
 	lidarParam.minPoint[2] = 80;
 	lidarParam.minPoint[3] = 80;
 
-	
-	rcl_interfaces::msg::ParameterDescriptor descriptor;
-	descriptor.description = "Log level for the node";
-	descriptor.additional_constraints = "\n0,Low\n1,Medium\n2,High";
-	
-	this->declare_parameter<int>("log_level", 1, descriptor);
-
-
 	this->declare_parameter<string>("0. IP Addr", lidarParam.ipAddr);
 //	this->declare_parameter<string>("1. Net Mask", lidarParam.netMask);
 //	this->declare_parameter<string>("2. GW Addr", lidarParam.gwAddr);
