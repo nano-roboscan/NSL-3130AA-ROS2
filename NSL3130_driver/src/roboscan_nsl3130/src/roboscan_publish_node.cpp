@@ -2026,7 +2026,6 @@ void roboscanPublisher::ImageFormatChange()
 		lidarParam.Format16UC1  = (lidarParam.selected_format == "2-3. image Format 16UC1");
 		lidarParam.FormatRGB8   = (lidarParam.selected_format == "2-4. image Format RGB8");
 	
-		// 3. 파라미터 상태를 한번에 반영 (UI 업데이트)
 		this->set_parameters({
 			rclcpp::Parameter("2-1. image Format Mono16", lidarParam.FormatMono16),
 			rclcpp::Parameter("2-2. image Format Mono8",  lidarParam.FormatMono8),
@@ -2117,7 +2116,7 @@ void roboscanPublisher::publishFrame(Frame *frame)
 			imgDistance.height = static_cast<uint32_t>(frame->height);
 			imgDistance.width = static_cast<uint32_t>(frame->width);
 			imgDistance.encoding = sensor_msgs::image_encodings::RGB8;
-			imgDistance.step = imgDistance.width * 3;  // RGB8은 3바이트 per pixel
+			imgDistance.step = imgDistance.width * 3;
 			imgDistance.is_bigendian = 0;
 
 			const size_t nPixel = frame->width * frame->height;
@@ -2202,7 +2201,7 @@ void roboscanPublisher::publishFrame(Frame *frame)
 			imgAmpl.height = static_cast<uint32_t>(frame->height);
 			imgAmpl.width = static_cast<uint32_t>(frame->width);
 			imgAmpl.encoding = sensor_msgs::image_encodings::RGB8;
-			imgAmpl.step = imgAmpl.width * 3;  // RGB8은 3바이트 per pixel
+			imgAmpl.step = imgAmpl.width * 3;
 			imgAmpl.is_bigendian = 0;
 			
 			uint16_t amplitude = 0;
