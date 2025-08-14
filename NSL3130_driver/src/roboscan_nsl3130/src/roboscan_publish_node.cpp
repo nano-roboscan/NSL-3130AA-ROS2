@@ -601,7 +601,7 @@ void roboscanPublisher::initialise()
 	viewerParam.paramSave = false;
 	viewerParam.paramLoad = true;
 
-	viewerParam.ipAddr = "192.168.0.190";
+	viewerParam.ipAddr = "192.168.0.220";
 	viewerParam.netMask = "255.255.255.0";
 	viewerParam.gwAddr = "192.168.0.1";
 
