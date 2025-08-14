@@ -135,7 +135,7 @@ void roboscanPublisher::thread_callback()
 			publishFrame(latestFrame.get());
 		}
 
-		waitKey(10);
+		std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
 		auto now = chrono::steady_clock::now();
 		auto elapsed = chrono::duration_cast<chrono::milliseconds>(now - lastTime).count();
