@@ -1,0 +1,3 @@
+[submodule "NSL3130_driver/src/roboscan_nsl3130/nsl_lib"]
+	path = NSL3130_driver/src/roboscan_nsl3130/nsl_lib
+	url = https://github.com/nano-roboscan/nsl3140-Library.git

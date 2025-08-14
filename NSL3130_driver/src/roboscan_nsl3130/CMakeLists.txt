@@ -1,4 +1,11 @@
 cmake_minimum_required(VERSION 3.8)
+
+if(POLICY CMP0074)
+  # Warning: Policy CMP0074 is not set: find_package uses <PackageName>_ROOT variables.
+  cmake_policy(SET CMP0074 NEW)
+endif()
+
+
 project(roboscan_nsl3130)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
@@ -32,7 +39,13 @@ find_package(std_msgs)
 find_package(eigen3_cmake_module REQUIRED)
 find_package(Eigen3)
 find_package(OpenCV REQUIRED)
-find_package(PCL REQUIRED COMPONENTS common io)
+#find_package(PCL REQUIRED COMPONENTS common io)
+find_package(PCL REQUIRED COMPONENTS common)
+
+# nanosystems library 
+find_path(NSL_LIB_INCLUDE_DIR NAMES nanolib.h PATHS nsl_lib/include REQUIRED)
+find_library(NSL_LIB_PATH NAMES nanolib PATHS nsl_lib/lib/linux-7.5/static REQUIRED)
+#find_library(NSL_LIB_PATH NAMES nanolib PATHS nsl_lib/lib/aarch-7.5/static REQUIRED)
 
 
 link_directories(${PCL_LIBRARY_DIRS})
@@ -41,22 +54,19 @@ link_directories(${PCL_LIBRARY_DIRS})
 include_directories(include/ 
 ${PCL_INCLUDE_DIRS} 
 ${Boost_INCLUDE_DIRS} 
-${OpenCV_INCLUDE_DIRS}
-${Eigen_INCLUDE_DIRS})
+${OpenCV_INCLUDE_DIRS} 
+${Eigen_INCLUDE_DIRS} 
+${NSL_LIB_INCLUDE_DIR})
 
 
 
 # Build
-add_executable(roboscan_publish_node src/roboscan_publish_node.cpp
-                                src/frame.cpp
-                                src/interface.cpp                              
-                                src/tcp_connection.cpp
-                                src/cartesian_transform.cpp
-                                src/udp_server.cpp)
+add_executable(roboscan_publish_node src/roboscan_publish_node.cpp)
                                 
 target_include_directories(roboscan_publish_node PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>)
+  
 target_compile_features(roboscan_publish_node PUBLIC c_std_99 cxx_std_17)  # Require C99 and C++17
 
 
@@ -74,7 +84,9 @@ ament_target_dependencies(roboscan_publish_node
 target_link_libraries(roboscan_publish_node 
 ${PCL_LIBRARIES}
 ${Boost_SYSTEM_LIBRARY}
-${Boost_LIBRARIES})
+${Boost_LIBRARIES}
+${NSL_LIB_PATH}
+)
 
 install(TARGETS roboscan_publish_node
   DESTINATION lib/${PROJECT_NAME})
