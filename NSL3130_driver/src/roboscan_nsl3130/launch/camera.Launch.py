@@ -28,19 +28,18 @@ def generate_launch_description():
         )
  
  
-    rviz_node = Node(
-        package='rviz2',
-
-        executable='rviz2',
-        name='rviz2',
-        arguments=['-d' + os.path.join(get_package_share_directory('roboscan_nsl3130'), 'rviz', 'roboscan_nsl3130rviz.rviz')],output='screen')
+#    rviz_node = Node(
+#        package='rviz2',
+#        executable='rviz2',
+#        name='rviz2',
+#        arguments=['-d' + os.path.join(get_package_share_directory('roboscan_nsl3130'), 'rviz', 'roboscan_nsl3130rviz.rviz')],output='screen')
 
     rqt_node = ExecuteProcess(
         cmd=['ros2', 'run', 'rqt_gui', 'rqt_gui'],
         output='screen')
 
 
-    launch_description.add_action(rviz_node)
+#    launch_description.add_action(rviz_node)
     launch_description.add_action(rqt_node)
     launch_description.add_action(roboscan_publish_node)
 
