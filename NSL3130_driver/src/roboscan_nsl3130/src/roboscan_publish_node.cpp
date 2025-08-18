@@ -16,7 +16,6 @@
 #include <cv_bridge/cv_bridge.h>
 //#include <pcl/conversions.h>
 //#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
-#include <ament_index_cpp/get_package_share_directory.hpp>
 #include <rcl_interfaces/msg/parameter_event.hpp>
 
 #include <sensor_msgs/msg/camera_info.hpp>
@@ -26,7 +25,6 @@
 #include <cstdlib>
 #include <unistd.h>
 
-#include <yaml-cpp/yaml.h>
 #include "roboscan_publish_node.hpp"
 
 using namespace NslOption;
@@ -90,14 +88,17 @@ roboscanPublisher::roboscanPublisher() :
     imgGrayPub = this->create_publisher<sensor_msgs::msg::Image>("roboscanGray", qos_profile); 
     pointcloudPub = this->create_publisher<sensor_msgs::msg::PointCloud2>("roboscanPointCloud", qos_profile); 
 
-    roboscanPublisher::initialise();
+//	yaml_path_ = std::string(std::getenv("HOME")) + "/lidar_params.yaml";
+	yaml_path_ = ament_index_cpp::get_package_share_directory("roboscan_nsl3130") + "/lidar_params.yaml";
+
     callback_handle_ = this->add_on_set_parameters_callback(std::bind(&roboscanPublisher::parametersCallback, this, std::placeholders::_1));
 
 	reconfigure = false;
 	mouseXpos = -1;
 	mouseYpos = -1;
 	runThread = true;
-    publisherThread.reset(new boost::thread(boost::bind(&roboscanPublisher::thread_callback, this)));
+    publisherThread.reset(new boost::thread(boost::bind(&roboscanPublisher::threadCallback, this)));
+
 
     RCLCPP_INFO(this->get_logger(), "\nRun rqt to view the image!\n");
 } 
@@ -112,15 +113,33 @@ roboscanPublisher::~roboscanPublisher()
     RCLCPP_INFO(this->get_logger(), "\nEnd roboscanPublisher()!\n");
 }
 
-void roboscanPublisher::thread_callback()
+void roboscanPublisher::initNslLibrary()
+{
+	nsl_handle = nsl_open(viewerParam.ipAddr.c_str(), &nslConfig, FUNCTION_OPTIONS::FUNC_ON);
+	if( nsl_handle < 0 ){
+		std::cout << "nsl_open::handle open error::" << nsl_handle << std::endl;
+		return;
+	}
+	
+	nsl_setMinAmplitude(nsl_handle, nslConfig.minAmplitude);
+	nsl_setIntegrationTime(nsl_handle, nslConfig.integrationTime3D, nslConfig.integrationTime3DHdr1, nslConfig.integrationTime3DHdr2, nslConfig.integrationTimeGrayScale);
+	nsl_setHdrMode(nsl_handle, nslConfig.hdrOpt);
+	nsl_setFilter(nsl_handle, nslConfig.medianOpt, nslConfig.gaussOpt, nslConfig.temporalFactorValue, nslConfig.temporalThresholdValue, nslConfig.edgeThresholdValue, nslConfig.interferenceDetectionLimitValue, nslConfig.interferenceDetectionLastValueOpt);
+	nsl_set3DFilter(nsl_handle, viewerParam.pointCloudEdgeThreshold);
+	nsl_setAdcOverflowSaturation(nsl_handle, nslConfig.overflowOpt, nslConfig.saturationOpt);
+	nsl_setDualBeam(nsl_handle, nslConfig.dbModOpt, nslConfig.dbOpsOpt);
+	nsl_setModulation(nsl_handle, nslConfig.mod_frequencyOpt, nslConfig.mod_channelOpt, nslConfig.mod_enabledAutoChannelOpt);
+	nsl_setRoi(nsl_handle, nslConfig.roiXMin, nslConfig.roiYMin, nslConfig.roiXMax, nslConfig.roiYMax);
+	nsl_setGrayscaleillumination(nsl_handle, nslConfig.grayscaleIlluminationOpt);
+
+	nslConfig.operationModeOpt = OPERATION_MODE_OPTIONS::DISTANCE_AMPLITUDE_MODE;
+	startStreaming();
+}
+
+void roboscanPublisher::threadCallback()
 {
 	auto lastTime = chrono::steady_clock::now();
 	int frameCount = 0;
-
-	std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-	paramLoad();
-
-	RCLCPP_INFO(this->get_logger(), "reconfigure = %d load = %d\n", reconfigure, viewerParam.paramLoad);
 
 	while(runThread){
 
@@ -149,7 +168,7 @@ void roboscanPublisher::thread_callback()
 	}
 
 	cv::destroyAllWindows();
-	RCLCPP_INFO(this->get_logger(), "end thread_callback\n");
+	RCLCPP_INFO(this->get_logger(), "end threadCallback\n");
 }
 
 
@@ -158,11 +177,6 @@ rcl_interfaces::msg::SetParametersResult roboscanPublisher::parametersCallback( 
 	rcl_interfaces::msg::SetParametersResult result;
 	result.successful = true;
 	result.reason = "success";
-
-	if( viewerParam.paramLoad == false )
-		viewerParam.paramSave = true;
-
-	RCLCPP_INFO(this->get_logger(), "paramSave = %d\n", viewerParam.paramSave);
 	
 	// Here update class attributes, do some actions, etc.
 	for (const auto &param: parameters)
@@ -174,7 +188,6 @@ rcl_interfaces::msg::SetParametersResult roboscanPublisher::parametersCallback( 
 			if( viewerParam.cvShow != showCv ){
 				viewerParam.cvShow = showCv;
 				viewerParam.changedCvShow = true;
-				viewerParam.paramSave = false;
 			}
 			
 		}
@@ -187,7 +200,7 @@ rcl_interfaces::msg::SetParametersResult roboscanPublisher::parametersCallback( 
 			int imgType = param.as_int();			
 			if( static_cast<int>(nslConfig.operationModeOpt) != imgType ){
 				nslConfig.operationModeOpt = static_cast<NslOption::OPERATION_MODE_OPTIONS>(imgType);
-				viewerParam.changedCvShow = true;
+				viewerParam.changedImageType = true;
 			}
 		}
 		else if (param.get_name() == "D. hdr_mode")
@@ -270,8 +283,13 @@ rcl_interfaces::msg::SetParametersResult roboscanPublisher::parametersCallback( 
 		else if (param.get_name() == "P. transformAngle")
 		{
 			nslConfig.lidarAngle = param.as_double();
-			if( viewerParam.paramLoad == false )
-				viewerParam.reOpenLidar = true;
+			viewerParam.reOpenLidar = true;
+		}
+		else if (param.get_name() == "Q. frameID")
+		{
+			RCLCPP_INFO(this->get_logger(), "changed frameID %s -> %s\n", viewerParam.frame_id.c_str(), param.as_string().c_str());
+			viewerParam.frame_id = param.as_string();
+			viewerParam.saveParam = true;
 		}
 		else if (param.get_name() == "R. medianFilter")
 		{
@@ -323,13 +341,19 @@ rcl_interfaces::msg::SetParametersResult roboscanPublisher::parametersCallback( 
 			if( dualBeam > 2 || dualBeam < 0 ) dualBeam = 0;
 			nslConfig.dbModOpt = static_cast<NslOption::DUALBEAM_MOD_OPTIONS>(dualBeam);
 		}
+		else if (param.get_name() == "W. dualBeamOption")
+		{
+			int dualBeamOpt = param.as_int();
+			if( dualBeamOpt > 2 || dualBeamOpt < 0 ) dualBeamOpt = 0;
+			nslConfig.dbOpsOpt = static_cast<NslOption::DUALBEAM_OPERATION_OPTIONS>(dualBeamOpt);
+		}
 		else if (param.get_name() == "X. grayscale LED")
 		{
 			nslConfig.grayscaleIlluminationOpt = static_cast<NslOption::FUNCTION_OPTIONS>(param.as_bool());
 		}
 		else if (param.get_name() == "Y. PointColud EDGE")
 		{
-			viewerParam.pointCloudEdgeFilter = param.as_bool();
+			viewerParam.pointCloudEdgeThreshold = param.as_int();
 		}
 		else if (param.get_name() == "Z. MaxDistance")
 		{
@@ -341,6 +365,7 @@ rcl_interfaces::msg::SetParametersResult roboscanPublisher::parametersCallback( 
 			if( tmpIp != viewerParam.ipAddr ) {
 				RCLCPP_INFO(this->get_logger(), "changed IP addr %s -> %s\n", viewerParam.ipAddr.c_str(), tmpIp.c_str());
 
+				viewerParam.saveParam = true;
 				viewerParam.changedIpInfo = true;
 				viewerParam.ipAddr = tmpIp;
 			}
@@ -350,6 +375,7 @@ rcl_interfaces::msg::SetParametersResult roboscanPublisher::parametersCallback( 
 			string tmpIp = param.as_string();
 			if( tmpIp != viewerParam.netMask ) {
 				RCLCPP_INFO(this->get_logger(), "changed Netmask addr %s -> %s\n", viewerParam.netMask.c_str(), tmpIp.c_str());
+				viewerParam.saveParam = true;
 				viewerParam.changedIpInfo = true;
 				viewerParam.netMask= tmpIp;
 			}
@@ -359,6 +385,7 @@ rcl_interfaces::msg::SetParametersResult roboscanPublisher::parametersCallback( 
 			string tmpIp = param.as_string();
 			if( tmpIp != viewerParam.gwAddr ) {
 				RCLCPP_INFO(this->get_logger(), "changed Gw addr %s -> %s\n", viewerParam.gwAddr.c_str(), tmpIp.c_str());
+				viewerParam.saveParam = true;
 				viewerParam.changedIpInfo = true;
 				viewerParam.gwAddr= tmpIp;
 			}
@@ -383,172 +410,56 @@ void roboscanPublisher::timeDelay(int milli)
 }
 
 
-// Save & Load Test
-void roboscanPublisher::paramDump(const std::string & filename)
-{
-    std::string package_path = ament_index_cpp::get_package_share_directory("roboscan_nsl3130");
-
-    std::string full_path = package_path + "/" + filename;
-
-    std::string command = "ros2 param dump /roboscan_publish_node > " + full_path;
-
-	std::cout << "SAVE::system = "<< command <<std::endl;
-
-    int result = std::system(command.c_str());
-
-    if (result == 0) {
-        try {
-            std::ifstream in(full_path);
-            std::ofstream out(full_path + ".tmp");
-
-            std::string line;
-            bool skip_block = false;
-
-            while (std::getline(in, line)) {
-                if (line.find("A:") != std::string::npos) {
-                    continue;
-                }
-                if (line.find("cvShow") != std::string::npos) {
-                    continue;
-                }
-
-                if (line.find("qos_overrides:") != std::string::npos) {
-                    skip_block = true;
-                    continue;
-                }
-
-                if (skip_block && !line.empty() && line[0] != ' ' && line.find(":") != std::string::npos) {
-                    skip_block = false;
-                }
-
-                if (!skip_block) {
-                    out << line << '\n';
-                }
-            }
-
-            in.close();
-            out.close();
-
-            std::filesystem::rename(full_path + ".tmp", package_path + "/rqt.yaml");
-            std::filesystem::remove(full_path);
-
-            std::cout << "save successful!!!!!!." << std::endl;
-
-        } catch (const std::filesystem::filesystem_error& e) {
-            std::filesystem::remove(full_path);
-            std::cerr << "save failed!! " << e.what() << std::endl;
-        }
-    } else {
-        std::cerr << "Command failed!!" << std::endl;
-        std::filesystem::remove(full_path);
-    }
-	
-}
-
-
-void roboscanPublisher::paramLoad() // file exist check
-{
-	bool loadSuccess = false;
-
-	std::string yaml_file = ament_index_cpp::get_package_share_directory("roboscan_nsl3130") + "/rqt.yaml";
-
-	std::string command = "ros2 param load /roboscan_publish_node " + yaml_file + " > /dev/null";
-
-	if (std::filesystem::exists(yaml_file)) {
-		int result = std::system(command.c_str());
-
-		if (result == 0) {
-			std::cout << "Load successful!!!!!" << std::endl;
-			loadSuccess = true;
-		} else {
-			std::cerr << "Load failed!!" << std::endl;
-		}
-	} else {
-		std::cerr << "not exist yaml file: " << yaml_file << std::endl;
-	}
-
-	if( loadSuccess == false ){
-		setReconfigure();
-	}
-}
 
 void roboscanPublisher::setReconfigure()
 {	
-	if( viewerParam.paramLoad )
+	if( viewerParam.saveParam )
 	{
-		viewerParam.paramLoad = false;
-		NslOption::OPERATION_MODE_OPTIONS mode = nslConfig.operationModeOpt;
-
-		nsl_handle = nsl_open(viewerParam.ipAddr.c_str(), &nslConfig, FUNCTION_OPTIONS::FUNC_ON);
-		if( nsl_handle < 0 ){
-			std::cout << "nsl_open::handle open error::" << nsl_handle << std::endl;
-			exit(0);
-		}
-
-		nslConfig.operationModeOpt = mode;
-		std::cout << "nsl_open :: mode = "<< (int)mode << std::endl;
+		std::cout << "save param................" << std::endl;
+		viewerParam.saveParam = false;
+		save_params();
 	}
-	else
+
+	if( !viewerParam.changedCvShow )
 	{
-		if(!viewerParam.paramLoad && viewerParam.paramSave )
-		{
-			viewerParam.paramSave = false;
-			std::future<void> result = std::async(std::launch::async, [&]() {
-				paramDump("rqt_temp.yaml");
-			});
-		}
-		
-		
 		nsl_streamingOff(nsl_handle);
-
-		std::cout << "nsl_open :: changedIpInfo = "<< viewerParam.changedIpInfo << " reOpenLidar = "<< viewerParam.reOpenLidar << std::endl;
-
-		if( viewerParam.changedIpInfo || viewerParam.reOpenLidar ){
 		
-			if( viewerParam.changedIpInfo ){
-				// automatic reboot device
-				paramDump("rqt_temp.yaml");
-				nsl_setIpAddress(nsl_handle, viewerParam.ipAddr.c_str(), viewerParam.netMask.c_str(), viewerParam.gwAddr.c_str());
-				RCLCPP_INFO(this->get_logger(), "wait time 5 sec\n");
-				timeDelay(5000);
-			}
-
-			RCLCPP_INFO(this->get_logger(), "========== %d, %d ============\n", viewerParam.changedIpInfo, viewerParam.reOpenLidar );
-			
-			NslOption::OPERATION_MODE_OPTIONS mode = nslConfig.operationModeOpt;
-			nsl_closeHandle(nsl_handle);
+		std::cout << " nsl_handle = "<< nsl_handle << "nsl_open :: changedIpInfo = "<< viewerParam.changedIpInfo << " reOpenLidar = "<< viewerParam.reOpenLidar << std::endl;
+		
+		if( nsl_handle < 0 && (viewerParam.changedIpInfo || viewerParam.reOpenLidar) ){
 			nsl_handle = nsl_open(viewerParam.ipAddr.c_str(), &nslConfig, FUNCTION_OPTIONS::FUNC_ON);
-			nslConfig.operationModeOpt = mode;
-		
+			nslConfig.operationModeOpt = OPERATION_MODE_OPTIONS::DISTANCE_AMPLITUDE_MODE;
 			viewerParam.changedIpInfo = false;
-			viewerParam.reOpenLidar = false;
+			viewerParam.reOpenLidar = false;		
 		}
+		
+		
+		nsl_setMinAmplitude(nsl_handle, nslConfig.minAmplitude);
+		nsl_setIntegrationTime(nsl_handle, nslConfig.integrationTime3D, nslConfig.integrationTime3DHdr1, nslConfig.integrationTime3DHdr2, nslConfig.integrationTimeGrayScale);
+		nsl_setHdrMode(nsl_handle, nslConfig.hdrOpt);
+		nsl_setFilter(nsl_handle, nslConfig.medianOpt, nslConfig.gaussOpt, nslConfig.temporalFactorValue, nslConfig.temporalThresholdValue, nslConfig.edgeThresholdValue, nslConfig.interferenceDetectionLimitValue, nslConfig.interferenceDetectionLastValueOpt);
+		nsl_set3DFilter(nsl_handle, viewerParam.pointCloudEdgeThreshold);
+		nsl_setAdcOverflowSaturation(nsl_handle, nslConfig.overflowOpt, nslConfig.saturationOpt);
+		nsl_setDualBeam(nsl_handle, nslConfig.dbModOpt, nslConfig.dbOpsOpt);
+		nsl_setModulation(nsl_handle, nslConfig.mod_frequencyOpt, nslConfig.mod_channelOpt, nslConfig.mod_enabledAutoChannelOpt);
+		nsl_setRoi(nsl_handle, nslConfig.roiXMin, nslConfig.roiYMin, nslConfig.roiXMax, nslConfig.roiYMax);
+		nsl_setGrayscaleillumination(nsl_handle, nslConfig.grayscaleIlluminationOpt);
+		
+		nsl_saveConfiguration(nsl_handle);
+
+		startStreaming();
 	}
 
-	
-	nsl_setMinAmplitude(nsl_handle, nslConfig.minAmplitude);
-	nsl_setIntegrationTime(nsl_handle, nslConfig.integrationTime3D, nslConfig.integrationTime3DHdr1, nslConfig.integrationTime3DHdr2, nslConfig.integrationTimeGrayScale);
-	nsl_setHdrMode(nsl_handle, nslConfig.hdrOpt);
-	nsl_setFilter(nsl_handle, nslConfig.medianOpt, nslConfig.gaussOpt, nslConfig.temporalFactorValue, nslConfig.temporalThresholdValue, nslConfig.edgeThresholdValue, nslConfig.interferenceDetectionLimitValue, nslConfig.interferenceDetectionLastValueOpt);
-	nsl_setAdcOverflowSaturation(nsl_handle, nslConfig.overflowOpt, nslConfig.saturationOpt);
-	nsl_setDualBeam(nsl_handle, nslConfig.dbModOpt, nslConfig.dbOpsOpt);
-	nsl_setModulation(nsl_handle, nslConfig.mod_frequencyOpt, nslConfig.mod_channelOpt, nslConfig.mod_enabledAutoChannelOpt);
-	nsl_setRoi(nsl_handle, nslConfig.roiXMin, nslConfig.roiYMin, nslConfig.roiXMax, nslConfig.roiYMax);
-	nsl_setGrayscaleillumination(nsl_handle, nslConfig.grayscaleIlluminationOpt);
-
-	waitKey(1);
 	setWinName();
-
-	startStreaming();
-
 	std::cout << "end setReconfigure"<< std::endl;
 
 }
 
 void roboscanPublisher::setWinName()
 {
-	bool changedCvShow = viewerParam.changedCvShow;
+	bool changedCvShow = viewerParam.changedCvShow || viewerParam.changedImageType;
 	viewerParam.changedCvShow = false;
+	viewerParam.changedImageType = false;
 	
 	if( changedCvShow ){
 		cv::destroyAllWindows();
@@ -591,16 +502,17 @@ void roboscanPublisher::initialise()
 {
 	std::cout << "Init roboscan_nsl3130 node\n"<< std::endl;
 
+	viewerParam.saveParam = false;
 	viewerParam.frameCount = 0;
 	viewerParam.maxDistance = 12500;
 	viewerParam.cvShow = false;
 	viewerParam.changedCvShow = true;
+	viewerParam.changedImageType = false;
 	viewerParam.changedIpInfo = false;
 	viewerParam.reOpenLidar = false;
-	viewerParam.pointCloudEdgeFilter = true;
-	viewerParam.paramSave = false;
-	viewerParam.paramLoad = true;
+	viewerParam.pointCloudEdgeThreshold = 200;
 
+	viewerParam.frame_id = "roboscan_frame";
 	viewerParam.ipAddr = "192.168.0.220";
 	viewerParam.netMask = "255.255.255.0";
 	viewerParam.gwAddr = "192.168.0.1";
@@ -608,39 +520,10 @@ void roboscanPublisher::initialise()
 	nslConfig.lidarAngle = 0;
 	nslConfig.lensType = NslOption::LENS_TYPE::LENS_SF;
 
-	nslConfig.minAmplitude = 50;
-	nslConfig.integrationTime3D = 1000;
-	nslConfig.integrationTime3DHdr1 = 300;
-	nslConfig.integrationTime3DHdr2 = 0;
-	nslConfig.integrationTimeGrayScale = 100;
 	
-	nslConfig.hdrOpt = NslOption::HDR_OPTIONS::HDR_NONE_MODE;
+	load_params();
 
-	nslConfig.medianOpt = NslOption::FUNCTION_OPTIONS::FUNC_ON;
-	nslConfig.gaussOpt = NslOption::FUNCTION_OPTIONS::FUNC_ON;
-	nslConfig.temporalFactorValue = 300;
-	nslConfig.temporalThresholdValue = 200;
-	nslConfig.edgeThresholdValue = 200;
-	nslConfig.interferenceDetectionLimitValue = 0;
-	nslConfig.interferenceDetectionLastValueOpt = NslOption::FUNCTION_OPTIONS::FUNC_OFF;
-
-	nslConfig.overflowOpt = NslOption::FUNCTION_OPTIONS::FUNC_ON;
-	nslConfig.saturationOpt = NslOption::FUNCTION_OPTIONS::FUNC_ON;
-	
-	nslConfig.dbModOpt = NslOption::DUALBEAM_MOD_OPTIONS::DB_OFF;
-	nslConfig.dbOpsOpt = NslOption::DUALBEAM_OPERATION_OPTIONS::DB_CORRECTION;
-
-	nslConfig.mod_frequencyOpt = NslOption::MODULATION_OPTIONS::MOD_12Mhz;
-	nslConfig.mod_channelOpt = NslOption::MODULATION_CH_OPTIONS::MOD_CH0;
-	nslConfig.mod_enabledAutoChannelOpt = NslOption::FUNCTION_OPTIONS::FUNC_OFF;
-
-	nslConfig.roiXMin = 0;
-	nslConfig.roiYMin = 0;
-	nslConfig.roiXMax = 319;
-	nslConfig.roiYMax = 239;
-	
-	nslConfig.grayscaleIlluminationOpt = NslOption::FUNCTION_OPTIONS::FUNC_OFF;
-
+	initNslLibrary();
 	setWinName();
 
 	rclcpp::Parameter pIPAddr("0. IP Addr", viewerParam.ipAddr);
@@ -664,6 +547,7 @@ void roboscanPublisher::initialise()
 	//rclcpp::Parameter pRoi_bottomY("O. roi_bottomY", nslConfig.roiYMax);
 	
 	rclcpp::Parameter pTransformAngle("P. transformAngle", nslConfig.lidarAngle);
+	rclcpp::Parameter pFrameID("Q. frameID", viewerParam.frame_id);
 	rclcpp::Parameter pMedianFilter("R. medianFilter", static_cast<int>(nslConfig.medianOpt));
 	rclcpp::Parameter pAverageFilter("S. gaussianFilter", static_cast<int>(nslConfig.gaussOpt));
 	rclcpp::Parameter pTemporalFilterFactor("T. temporalFilterFactor", nslConfig.temporalFactorValue);
@@ -674,8 +558,10 @@ void roboscanPublisher::initialise()
 
 
 	rclcpp::Parameter pDualBeam("W. dualBeam", static_cast<int>(nslConfig.dbModOpt));
+	rclcpp::Parameter pDualBeamOpt("W. dualBeamOption", static_cast<int>(nslConfig.dbOpsOpt));	
+
 	rclcpp::Parameter pGrayLED("X. grayscale LED", static_cast<int>(nslConfig.grayscaleIlluminationOpt));
-	rclcpp::Parameter pPCEdgeFilter("Y. PointColud EDGE", viewerParam.pointCloudEdgeFilter);
+	rclcpp::Parameter pPCEdgeFilter("Y. PointColud EDGE", viewerParam.pointCloudEdgeThreshold);
 	rclcpp::Parameter pMaxDistance("Z. MaxDistance", viewerParam.maxDistance);
 
 	this->declare_parameter<string>("0. IP Addr", viewerParam.ipAddr);
@@ -698,6 +584,7 @@ void roboscanPublisher::initialise()
 //	this->declare_parameter<int>("O. roi_bottomY", nslConfig.roiYMax);
 
 	this->declare_parameter<double>("P. transformAngle", nslConfig.lidarAngle);
+	this->declare_parameter<string>("Q. frameID", viewerParam.frame_id);
 	this->declare_parameter<bool>("R. medianFilter", static_cast<int>(nslConfig.medianOpt));
 	this->declare_parameter<bool>("S. gaussianFilter", static_cast<int>(nslConfig.gaussOpt));
 	this->declare_parameter<double>("T. temporalFilterFactor", nslConfig.temporalFactorValue);
@@ -708,10 +595,12 @@ void roboscanPublisher::initialise()
 
 
 	this->declare_parameter<int>("W. dualBeam", static_cast<int>(nslConfig.dbModOpt));
+	this->declare_parameter<int>("W. dualBeamOption", static_cast<int>(nslConfig.dbOpsOpt));
 	this->declare_parameter<bool>("X. grayscale LED", static_cast<int>(nslConfig.grayscaleIlluminationOpt));
-	this->declare_parameter<bool>("Y. PointColud EDGE", viewerParam.pointCloudEdgeFilter);
+	this->declare_parameter<int>("Y. PointColud EDGE", viewerParam.pointCloudEdgeThreshold);
 	this->declare_parameter<int>("Z. MaxDistance", viewerParam.maxDistance);
 
+	this->set_parameter(pFrameID);
 	this->set_parameter(pIPAddr);
 //	this->set_parameter(pNetMask);
 //	this->set_parameter(pGWAddr);
@@ -743,10 +632,15 @@ void roboscanPublisher::initialise()
 
 	this->set_parameter(pCvShow);
 	this->set_parameter(pDualBeam);
+	this->set_parameter(pDualBeamOpt);	
 	this->set_parameter(pGrayLED);
 	this->set_parameter(pPCEdgeFilter);
 	this->set_parameter(pMaxDistance);
 
+	viewerParam.saveParam = false;
+	reconfigure = false;
+	
+	RCLCPP_INFO(this->get_logger(),"end initialise()\n");
 }
 
 
@@ -892,7 +786,7 @@ void roboscanPublisher::publishFrame(NslPCD *frame)
 		}
 
 		imgDistance.header.stamp = data_stamp;
-		imgDistance.header.frame_id = "roboscan_frame";
+		imgDistance.header.frame_id = viewerParam.frame_id;
 		imgDistance.height = static_cast<uint32_t>(frame->height);
 		imgDistance.width = static_cast<uint32_t>(frame->width);
 		imgDistance.encoding = sensor_msgs::image_encodings::MONO16;
@@ -923,7 +817,7 @@ void roboscanPublisher::publishFrame(NslPCD *frame)
 		}
 
 		imgAmpl.header.stamp = data_stamp;
-		imgAmpl.header.frame_id = "roboscan_frame";
+		imgAmpl.header.frame_id = viewerParam.frame_id;
 		imgAmpl.height = static_cast<uint32_t>(frame->height);
 		imgAmpl.width = static_cast<uint32_t>(frame->width);
 		imgAmpl.encoding = sensor_msgs::image_encodings::MONO16;
@@ -956,7 +850,7 @@ void roboscanPublisher::publishFrame(NslPCD *frame)
 		}
 
 		imgGray.header.stamp = data_stamp;
-		imgGray.header.frame_id = "roboscan_frame";
+		imgGray.header.frame_id = viewerParam.frame_id;
 		imgGray.height = static_cast<uint32_t>(frame->height);
 		imgGray.width = static_cast<uint32_t>(frame->width);
 		imgGray.encoding = sensor_msgs::image_encodings::MONO16;
@@ -988,7 +882,7 @@ void roboscanPublisher::publishFrame(NslPCD *frame)
 
 		cv_bridge::CvImagePtr cv_ptr(new cv_bridge::CvImage);
 		cv_ptr->header.stamp = data_stamp;
-		cv_ptr->header.frame_id = "roboscan_frame";
+		cv_ptr->header.frame_id = viewerParam.frame_id;
 		cv_ptr->image = rgbMat;
 		cv_ptr->encoding = "bgr8";
 	
@@ -1001,7 +895,7 @@ void roboscanPublisher::publishFrame(NslPCD *frame)
 	{
 		const size_t nPixel = frame->width * frame->height;
 		pcl::PointCloud<pcl::PointXYZI>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZI>());
-		cloud->header.frame_id = "roboscan_frame";
+		cloud->header.frame_id = viewerParam.frame_id;
 		cloud->header.stamp = pcl_conversions::toPCL(data_stamp);
 		//cloud->header.stamp = static_cast<uint64_t>(data_stamp.nanoseconds());
 		cloud->width = static_cast<uint32_t>(frame->width);
@@ -1038,7 +932,7 @@ void roboscanPublisher::publishFrame(NslPCD *frame)
 		sensor_msgs::msg::PointCloud2 msg;
 		pcl::toROSMsg(*cloud, msg);
 		msg.header.stamp = data_stamp;
-		msg.header.frame_id = "roboscan_frame";
+		msg.header.frame_id = viewerParam.frame_id;
 		pointcloudPub->publish(msg);  
 	}
 	
@@ -1117,6 +1011,8 @@ int main(int argc, char ** argv)
 	rclcpp::init(argc, argv);
 
 	auto node = std::make_shared<roboscanPublisher>();
+	node->initialise();
+	
 	rclcpp::spin(node);
 	rclcpp::shutdown();
 	return 0;

@@ -23,6 +23,8 @@
 #include <sys/stat.h>
 #include <cstdlib>
 #include <unistd.h>
+#include <yaml-cpp/yaml.h>
+#include <ament_index_cpp/get_package_share_directory.hpp>
 
 #include "nanolib.h"
 
@@ -37,17 +39,16 @@ namespace nanosys {
 	struct ViewerParameter {
 		int	frameCount;
 		int maxDistance;
+		int pointCloudEdgeThreshold;
 		
 		bool cvShow;
 		bool changedCvShow;
+		bool changedImageType;
 		bool changedIpInfo;
 		bool reOpenLidar;
-		bool pointCloudEdgeFilter;
-		bool paramSave;
-		bool paramLoad;
-
+		bool saveParam;
 		
-
+		std::string	frame_id;
 		std::string	ipAddr;
 		std::string	netMask;
 		std::string	gwAddr;
@@ -74,7 +75,8 @@ namespace nanosys {
 		roboscanPublisher();
 		~roboscanPublisher();
 
-		void thread_callback();
+		void initialise();
+		void threadCallback();
 		void setReconfigure();
 		void publishFrame(NslPCD *frame);
 		void startStreaming();
@@ -98,8 +100,39 @@ namespace nanosys {
 		NslConfig 		nslConfig;
 		int 			nsl_handle;
 	private:
+		std::string yaml_path_;
+
+		// load yaml
+		void load_params()
+		{
+			RCLCPP_INFO(this->get_logger(),"Loaded params: path=%s\n", yaml_path_.c_str());
+			
+			if (std::ifstream(yaml_path_))
+			{
+				// 파일 존재 → 읽기
+				YAML::Node config = YAML::LoadFile(yaml_path_);
+				viewerParam.ipAddr = config["0. IP Addr"] ? config["0. IP Addr"].as<std::string>() : "192.168.0.220";
+				viewerParam.frame_id = config["Q. frameID"] ? config["Q. frameID"].as<std::string>() : "roboscan_frame";
+				
+				
+				RCLCPP_INFO(this->get_logger(),"Loaded params: ip=%s, frame_id=%s\n", viewerParam.ipAddr.c_str(), viewerParam.frame_id.c_str());
+			}
+			else{
+				RCLCPP_INFO(this->get_logger(),"Not found params: ip=%s, frame_id=%s\n", viewerParam.ipAddr.c_str(), viewerParam.frame_id.c_str());
+			}
+		}
+
+	    // save yaml
+	    void save_params()
+	    {
+	        std::ofstream fout(yaml_path_);
+	        fout << "0. IP Addr: " << this->get_parameter("0. IP Addr").as_string() << "\n";
+	        fout << "Q. frameID: " << this->get_parameter("Q. frameID").as_string() << "\n";
+	        fout.close();
+	        RCLCPP_INFO(this->get_logger(), "Params saved to %s", yaml_path_.c_str());
+	    }
 		
-		void initialise();
+		void initNslLibrary();
 		void timeDelay(int milli);
 		void getMouseEvent( int &mouse_xpos, int &mouse_ypos );
 		cv::Mat addDistanceInfo(cv::Mat distMat, NslPCD *frame);

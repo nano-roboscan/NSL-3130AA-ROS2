@@ -22,6 +22,7 @@ find_package(rclcpp_action REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(PCL REQUIRED)
+find_package(yaml-cpp REQUIRED)
 
 find_package(pcl_conversions REQUIRED)
 find_package(sensor_msgs REQUIRED)
@@ -86,6 +87,7 @@ ${PCL_LIBRARIES}
 ${Boost_SYSTEM_LIBRARY}
 ${Boost_LIBRARIES}
 ${NSL_LIB_PATH}
+yaml-cpp
 )
 
 install(TARGETS roboscan_publish_node
