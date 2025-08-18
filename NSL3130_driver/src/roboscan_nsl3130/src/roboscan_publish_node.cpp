@@ -120,7 +120,10 @@ void roboscanPublisher::initNslLibrary()
 		std::cout << "nsl_open::handle open error::" << nsl_handle << std::endl;
 		return;
 	}
-	
+
+//	nsl_setColorRange(viewerParam.maxDistance, MAX_GRAYSCALE_VALUE, NslOption::FUNCTION_OPTIONS::FUNC_OFF);
+	nsl_setColorRange(viewerParam.maxDistance, MAX_GRAYSCALE_VALUE, NslOption::FUNCTION_OPTIONS::FUNC_ON);
+
 	nsl_setMinAmplitude(nsl_handle, nslConfig.minAmplitude);
 	nsl_setIntegrationTime(nsl_handle, nslConfig.integrationTime3D, nslConfig.integrationTime3DHdr1, nslConfig.integrationTime3DHdr2, nslConfig.integrationTimeGrayScale);
 	nsl_setHdrMode(nsl_handle, nslConfig.hdrOpt);
@@ -409,13 +412,46 @@ void roboscanPublisher::timeDelay(int milli)
 	}
 }
 
+void roboscanPublisher::renewParameter()
+{
+	this->set_parameter(rclcpp::Parameter("0. IP Addr", viewerParam.ipAddr));
+	this->set_parameter(rclcpp::Parameter("B. lensType", static_cast<int>(nslConfig.lensType)));
+	this->set_parameter(rclcpp::Parameter("C. imageType", static_cast<int>(nslConfig.operationModeOpt)));
+	this->set_parameter(rclcpp::Parameter("D. hdr_mode", static_cast<int>(nslConfig.hdrOpt)));
+	this->set_parameter(rclcpp::Parameter("E. int0", nslConfig.integrationTime3D));
+	this->set_parameter(rclcpp::Parameter("F. int1", nslConfig.integrationTime3DHdr1));
+	this->set_parameter(rclcpp::Parameter("G. int2", nslConfig.integrationTime3DHdr2));
+	this->set_parameter(rclcpp::Parameter("H. intGr", nslConfig.integrationTime3DHdr1));
+	this->set_parameter(rclcpp::Parameter("I. minAmplitude", nslConfig.minAmplitude));
+	this->set_parameter(rclcpp::Parameter("J. modIndex", static_cast<int>(nslConfig.mod_frequencyOpt)));
+	this->set_parameter(rclcpp::Parameter("K. channel", static_cast<int>(nslConfig.mod_channelOpt)));
+	this->set_parameter(rclcpp::Parameter("L. roi_leftX", nslConfig.roiXMin));
+	this->set_parameter(rclcpp::Parameter("M. roi_topY", nslConfig.roiYMin));
+	this->set_parameter(rclcpp::Parameter("N. roi_rightX", nslConfig.roiXMax));
+	this->set_parameter(rclcpp::Parameter("P. transformAngle", nslConfig.lidarAngle));
+	this->set_parameter(rclcpp::Parameter("Q. frameID", viewerParam.frame_id));
+	this->set_parameter(rclcpp::Parameter("R. medianFilter", static_cast<int>(nslConfig.medianOpt)));
+	this->set_parameter(rclcpp::Parameter("S. gaussianFilter", static_cast<int>(nslConfig.gaussOpt)));
+	this->set_parameter(rclcpp::Parameter("T. temporalFilterFactor", nslConfig.temporalFactorValue));
+	this->set_parameter(rclcpp::Parameter("T. temporalFilterFactorThreshold", nslConfig.temporalThresholdValue));
+	this->set_parameter(rclcpp::Parameter("U. edgeFilterThreshold", nslConfig.edgeThresholdValue));
+	
+	this->set_parameter(rclcpp::Parameter("V. interferenceDetectionLimit", nslConfig.interferenceDetectionLimitValue));
+	this->set_parameter(rclcpp::Parameter("V. useLastValue", static_cast<int>(nslConfig.interferenceDetectionLastValueOpt)));
+	this->set_parameter(rclcpp::Parameter("W. dualBeam", static_cast<int>(nslConfig.dbModOpt)));
+	this->set_parameter(rclcpp::Parameter("W. dualBeamOption", static_cast<int>(nslConfig.dbOpsOpt)));
+	this->set_parameter(rclcpp::Parameter("X. grayscale LED", static_cast<int>(nslConfig.grayscaleIlluminationOpt)));
+	this->set_parameter(rclcpp::Parameter("Y. PointColud EDGE", viewerParam.pointCloudEdgeThreshold));
+	this->set_parameter(rclcpp::Parameter("Z. MaxDistance", viewerParam.maxDistance));
+	
+	
 
+}
 
 void roboscanPublisher::setReconfigure()
 {	
 	if( viewerParam.saveParam )
 	{
-		std::cout << "save param................" << std::endl;
 		viewerParam.saveParam = false;
 		save_params();
 	}
@@ -428,9 +464,15 @@ void roboscanPublisher::setReconfigure()
 		
 		if( nsl_handle < 0 && (viewerParam.changedIpInfo || viewerParam.reOpenLidar) ){
 			nsl_handle = nsl_open(viewerParam.ipAddr.c_str(), &nslConfig, FUNCTION_OPTIONS::FUNC_ON);
+			//nsl_setColorRange(viewerParam.maxDistance, MAX_GRAYSCALE_VALUE, NslOption::FUNCTION_OPTIONS::FUNC_OFF);
+			nsl_setColorRange(viewerParam.maxDistance, MAX_GRAYSCALE_VALUE, NslOption::FUNCTION_OPTIONS::FUNC_ON);
 			nslConfig.operationModeOpt = OPERATION_MODE_OPTIONS::DISTANCE_AMPLITUDE_MODE;
 			viewerParam.changedIpInfo = false;
-			viewerParam.reOpenLidar = false;		
+			viewerParam.reOpenLidar = false;
+
+			if( nsl_handle >= 0 ){
+				renewParameter();
+			}
 		}
 		
 		
@@ -504,12 +546,12 @@ void roboscanPublisher::initialise()
 
 	viewerParam.saveParam = false;
 	viewerParam.frameCount = 0;
-	viewerParam.maxDistance = 12500;
 	viewerParam.cvShow = false;
 	viewerParam.changedCvShow = true;
 	viewerParam.changedImageType = false;
 	viewerParam.changedIpInfo = false;
 	viewerParam.reOpenLidar = false;
+	viewerParam.maxDistance = 12500;
 	viewerParam.pointCloudEdgeThreshold = 200;
 
 	viewerParam.frame_id = "roboscan_frame";
@@ -517,11 +559,10 @@ void roboscanPublisher::initialise()
 	viewerParam.netMask = "255.255.255.0";
 	viewerParam.gwAddr = "192.168.0.1";
 
+	load_params();
+
 	nslConfig.lidarAngle = 0;
 	nslConfig.lensType = NslOption::LENS_TYPE::LENS_SF;
-
-	
-	load_params();
 
 	initNslLibrary();
 	setWinName();
@@ -812,7 +853,7 @@ void roboscanPublisher::publishFrame(NslPCD *frame)
 				result.push_back(static_cast<uint8_t>(frame->amplitude[y+yMin][x+xMin] & 0xFF));		// LSB
 				result.push_back(static_cast<uint8_t>((frame->amplitude[y+yMin][x+xMin] >> 8) & 0xFF)); // MSB
 
-				setMatrixColor(amplitudeMat, x+xMin, y+yMin, nsl_getDistanceColor(frame->amplitude[y+yMin][x+xMin]));
+				setMatrixColor(amplitudeMat, x+xMin, y+yMin, nsl_getAmplitudeColor(frame->amplitude[y+yMin][x+xMin]));
 			}
 		}
 

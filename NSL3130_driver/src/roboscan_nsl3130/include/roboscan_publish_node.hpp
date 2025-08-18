@@ -109,16 +109,17 @@ namespace nanosys {
 			
 			if (std::ifstream(yaml_path_))
 			{
-				// 파일 존재 → 읽기
 				YAML::Node config = YAML::LoadFile(yaml_path_);
-				viewerParam.ipAddr = config["0. IP Addr"] ? config["0. IP Addr"].as<std::string>() : "192.168.0.220";
-				viewerParam.frame_id = config["Q. frameID"] ? config["Q. frameID"].as<std::string>() : "roboscan_frame";
+				viewerParam.ipAddr = config["IP Addr"] ? config["IP Addr"].as<std::string>() : "192.168.0.220";
+				viewerParam.frame_id = config["frameID"] ? config["frameID"].as<std::string>() : "roboscan_frame";
+				viewerParam.maxDistance = config["MaxDistance"] ? config["MaxDistance"].as<int>() : 12500;
+				viewerParam.pointCloudEdgeThreshold = config["PointColud EDGE"] ? config["PointColud EDGE"].as<int>() : 200;
 				
 				
-				RCLCPP_INFO(this->get_logger(),"Loaded params: ip=%s, frame_id=%s\n", viewerParam.ipAddr.c_str(), viewerParam.frame_id.c_str());
+				RCLCPP_INFO(this->get_logger(),"Loaded params: ip=%s, frame_id=%s, max = %d, edge = %d\n", viewerParam.ipAddr.c_str(), viewerParam.frame_id.c_str(), viewerParam.maxDistance, viewerParam.pointCloudEdgeThreshold);
 			}
 			else{
-				RCLCPP_INFO(this->get_logger(),"Not found params: ip=%s, frame_id=%s\n", viewerParam.ipAddr.c_str(), viewerParam.frame_id.c_str());
+				RCLCPP_INFO(this->get_logger(),"Not found params: ip=%s, frame_id=%s, max = %d, edge = %d\n", viewerParam.ipAddr.c_str(), viewerParam.frame_id.c_str(), viewerParam.maxDistance, viewerParam.pointCloudEdgeThreshold);
 			}
 		}
 
@@ -126,14 +127,17 @@ namespace nanosys {
 	    void save_params()
 	    {
 	        std::ofstream fout(yaml_path_);
-	        fout << "0. IP Addr: " << this->get_parameter("0. IP Addr").as_string() << "\n";
-	        fout << "Q. frameID: " << this->get_parameter("Q. frameID").as_string() << "\n";
+	        fout << "IP Addr: " << this->get_parameter("0. IP Addr").as_string() << "\n";
+	        fout << "frameID: " << this->get_parameter("Q. frameID").as_string() << "\n";
+	        fout << "MaxDistance: " << this->get_parameter("Z. MaxDistance").as_int() << "\n";
+	        fout << "PointColud EDGE: " << this->get_parameter("Y. PointColud EDGE").as_int() << "\n";
 	        fout.close();
 	        RCLCPP_INFO(this->get_logger(), "Params saved to %s", yaml_path_.c_str());
 	    }
 		
 		void initNslLibrary();
 		void timeDelay(int milli);
+		void renewParameter();
 		void getMouseEvent( int &mouse_xpos, int &mouse_ypos );
 		cv::Mat addDistanceInfo(cv::Mat distMat, NslPCD *frame);
 		void setWinName();
