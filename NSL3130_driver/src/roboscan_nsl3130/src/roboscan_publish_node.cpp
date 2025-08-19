@@ -291,8 +291,11 @@ rcl_interfaces::msg::SetParametersResult roboscanPublisher::parametersCallback( 
 		else if (param.get_name() == "Q. frameID")
 		{
 			RCLCPP_INFO(this->get_logger(), "changed frameID %s -> %s\n", viewerParam.frame_id.c_str(), param.as_string().c_str());
-			viewerParam.frame_id = param.as_string();
-			viewerParam.saveParam = true;
+			string tmpId = param.as_string();
+			if( tmpId != viewerParam.frame_id ) {
+				viewerParam.frame_id = tmpId;
+				viewerParam.saveParam = true;
+			}
 		}
 		else if (param.get_name() == "R. medianFilter")
 		{
