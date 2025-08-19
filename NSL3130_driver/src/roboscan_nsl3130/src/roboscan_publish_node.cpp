@@ -359,11 +359,19 @@ rcl_interfaces::msg::SetParametersResult roboscanPublisher::parametersCallback( 
 		}
 		else if (param.get_name() == "Y. PointColud EDGE")
 		{
-			viewerParam.pointCloudEdgeThreshold = param.as_int();
+			int tmpThreshold = param.as_int();
+			if( viewerParam.pointCloudEdgeThreshold != tmpThreshold ){
+				viewerParam.pointCloudEdgeThreshold = tmpThreshold;
+				viewerParam.saveParam = true;
+			}
 		}
 		else if (param.get_name() == "Z. MaxDistance")
 		{
-			viewerParam.maxDistance = param.as_int();
+			int tmpDistance = param.as_int();
+			if( viewerParam.maxDistance != tmpDistance ){
+				viewerParam.maxDistance = tmpDistance;
+				viewerParam.saveParam = true;
+			}
 		}
 		else if (param.get_name() == "0. IP Addr")
 		{
