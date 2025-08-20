@@ -791,9 +791,9 @@ cv::Mat roboscanPublisher::addDistanceInfo(cv::Mat distMat, NslPCD *frame)
 
 void setMatrixColor(Mat image, int x, int y, NslVec3b color)
 {
-	image.at<Vec3b>(y,x)[0] = color[0];
-	image.at<Vec3b>(y,x)[1] = color[1];
-	image.at<Vec3b>(y,x)[2] = color[2];
+	image.at<Vec3b>(y,x)[0] = color.b;
+	image.at<Vec3b>(y,x)[1] = color.g;
+	image.at<Vec3b>(y,x)[2] = color.r;
 }
 
 void roboscanPublisher::publishFrame(NslPCD *frame)
@@ -923,9 +923,9 @@ void roboscanPublisher::publishFrame(NslPCD *frame)
 		
 		for (int i = 0; i < totalPixels; ++i) {
 			dstPtr[i] = cv::Vec3b(
-				srcPtr[i][0],  // blue
-				srcPtr[i][1],  // green
-				srcPtr[i][2]   // red
+				srcPtr[i].b,  // blue
+				srcPtr[i].g,  // green
+				srcPtr[i].r   // red
 			);
 		}
 
