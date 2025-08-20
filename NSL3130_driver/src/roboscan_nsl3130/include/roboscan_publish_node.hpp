@@ -40,6 +40,7 @@ namespace nanosys {
 		int	frameCount;
 		int maxDistance;
 		int pointCloudEdgeThreshold;
+		int imageType;
 		
 		bool cvShow;
 		bool changedCvShow;
@@ -101,36 +102,66 @@ namespace nanosys {
 		int 			nsl_handle;
 	private:
 		std::string yaml_path_;
-
+	
 		// load yaml
 		void load_params()
 		{
+			const std::unordered_map<std::string, int> modeMap = {
+			    {"DISTANCE", 1},
+			    {"GRAYSCALE", 2},
+				{"DISTANCE_AMPLITUDE", 3},
+			    {"DISTANCE_GRAYSCALE", 4},
+			    {"RGB", 5},
+			    {"RGB_DISTANCE", 6},
+			    {"RGB_DISTANCE_AMPLITUDE", 7},
+			    {"RGB_DISTANCE_GRAYSCALE", 8}
+			};
+			
 			RCLCPP_INFO(this->get_logger(),"Loaded params: path=%s\n", yaml_path_.c_str());
 			
 			if (std::ifstream(yaml_path_))
 			{
 				YAML::Node config = YAML::LoadFile(yaml_path_);
 				viewerParam.ipAddr = config["IP Addr"] ? config["IP Addr"].as<std::string>() : "192.168.0.220";
-				viewerParam.frame_id = config["frameID"] ? config["frameID"].as<std::string>() : "roboscan_frame";
+				viewerParam.frame_id = config["FrameID"] ? config["FrameID"].as<std::string>() : "roboscan_frame";
 				viewerParam.maxDistance = config["MaxDistance"] ? config["MaxDistance"].as<int>() : 12500;
 				viewerParam.pointCloudEdgeThreshold = config["PointColud EDGE"] ? config["PointColud EDGE"].as<int>() : 200;
+				std::string tmpModoStr = config["ImageType"] ? config["ImageType"].as<std::string>() : "DISTANCE_AMPLITUDE";
+
+				auto it = modeMap.find(tmpModoStr);
+				viewerParam.imageType = (it != modeMap.end()) ? it->second : 3; // defeault DISTANCE_AMPLITUDE
 				
-				
-				RCLCPP_INFO(this->get_logger(),"Loaded params: ip=%s, frame_id=%s, max = %d, edge = %d\n", viewerParam.ipAddr.c_str(), viewerParam.frame_id.c_str(), viewerParam.maxDistance, viewerParam.pointCloudEdgeThreshold);
+				RCLCPP_INFO(this->get_logger(),"Loaded params: ip=%s, frame_id=%s, max = %d, edge = %d, imgType = %d\n", viewerParam.ipAddr.c_str(), viewerParam.frame_id.c_str(), viewerParam.maxDistance, viewerParam.pointCloudEdgeThreshold, viewerParam.imageType);
 			}
 			else{
-				RCLCPP_INFO(this->get_logger(),"Not found params: ip=%s, frame_id=%s, max = %d, edge = %d\n", viewerParam.ipAddr.c_str(), viewerParam.frame_id.c_str(), viewerParam.maxDistance, viewerParam.pointCloudEdgeThreshold);
+				RCLCPP_INFO(this->get_logger(),"Not found params: ip=%s, frame_id=%s, max = %d, edge = %d, imgType = %d\n", viewerParam.ipAddr.c_str(), viewerParam.frame_id.c_str(), viewerParam.maxDistance, viewerParam.pointCloudEdgeThreshold, viewerParam.imageType);
 			}
 		}
 
 	    // save yaml
 	    void save_params()
 	    {
+		    const std::unordered_map<int, std::string> modeMap = {
+		        {1, "DISTANCE"},
+		        {2, "GRAYSCALE"},
+				{3, "DISTANCE_AMPLITUDE"},
+		        {4, "DISTANCE_GRAYSCALE"},
+		        {5, "RGB"},
+		        {6, "RGB_DISTANCE"},
+		        {7, "RGB_DISTANCE_AMPLITUDE"},
+		        {8, "RGB_DISTANCE_GRAYSCALE"}
+		    };
+
+			int imgType = this->get_parameter("C. imageType").as_int();
+			if( imgType < 1 || imgType > 8 ) imgType = 3; // default DISTANCE_AMPLITUDE
+			
 	        std::ofstream fout(yaml_path_);
 	        fout << "IP Addr: " << this->get_parameter("0. IP Addr").as_string() << "\n";
-	        fout << "frameID: " << this->get_parameter("Q. frameID").as_string() << "\n";
+	        fout << "FrameID: " << this->get_parameter("Q. frameID").as_string() << "\n";
 	        fout << "MaxDistance: " << this->get_parameter("Z. MaxDistance").as_int() << "\n";
 	        fout << "PointColud EDGE: " << this->get_parameter("Y. PointColud EDGE").as_int() << "\n";
+			fout << "ImageType: " << modeMap.at(imgType) << "\n";
+			
 	        fout.close();
 	        RCLCPP_INFO(this->get_logger(), "Params saved to %s", yaml_path_.c_str());
 	    }

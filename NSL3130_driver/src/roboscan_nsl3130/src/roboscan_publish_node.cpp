@@ -135,7 +135,6 @@ void roboscanPublisher::initNslLibrary()
 	nsl_setRoi(nsl_handle, nslConfig.roiXMin, nslConfig.roiYMin, nslConfig.roiXMax, nslConfig.roiYMax);
 	nsl_setGrayscaleillumination(nsl_handle, nslConfig.grayscaleIlluminationOpt);
 
-	nslConfig.operationModeOpt = OPERATION_MODE_OPTIONS::DISTANCE_AMPLITUDE_MODE;
 	startStreaming();
 }
 
@@ -201,9 +200,10 @@ rcl_interfaces::msg::SetParametersResult roboscanPublisher::parametersCallback( 
 		else if (param.get_name() == "C. imageType")
 		{
 			int imgType = param.as_int();			
-			if( static_cast<int>(nslConfig.operationModeOpt) != imgType ){
-				nslConfig.operationModeOpt = static_cast<NslOption::OPERATION_MODE_OPTIONS>(imgType);
+			if( viewerParam.imageType != imgType ){
+				viewerParam.imageType = imgType;
 				viewerParam.changedImageType = true;
+				viewerParam.saveParam = true;
 			}
 		}
 		else if (param.get_name() == "D. hdr_mode")
@@ -427,7 +427,7 @@ void roboscanPublisher::renewParameter()
 {
 	this->set_parameter(rclcpp::Parameter("0. IP Addr", viewerParam.ipAddr));
 	this->set_parameter(rclcpp::Parameter("B. lensType", static_cast<int>(nslConfig.lensType)));
-	this->set_parameter(rclcpp::Parameter("C. imageType", static_cast<int>(nslConfig.operationModeOpt)));
+	this->set_parameter(rclcpp::Parameter("C. imageType", viewerParam.imageType));
 	this->set_parameter(rclcpp::Parameter("D. hdr_mode", static_cast<int>(nslConfig.hdrOpt)));
 	this->set_parameter(rclcpp::Parameter("E. int0", nslConfig.integrationTime3D));
 	this->set_parameter(rclcpp::Parameter("F. int1", nslConfig.integrationTime3DHdr1));
@@ -477,7 +477,6 @@ void roboscanPublisher::setReconfigure()
 			nsl_handle = nsl_open(viewerParam.ipAddr.c_str(), &nslConfig, FUNCTION_OPTIONS::FUNC_ON);
 			//nsl_setColorRange(viewerParam.maxDistance, MAX_GRAYSCALE_VALUE, NslOption::FUNCTION_OPTIONS::FUNC_OFF);
 			nsl_setColorRange(viewerParam.maxDistance, MAX_GRAYSCALE_VALUE, NslOption::FUNCTION_OPTIONS::FUNC_ON);
-			nslConfig.operationModeOpt = OPERATION_MODE_OPTIONS::DISTANCE_AMPLITUDE_MODE;
 			viewerParam.changedIpInfo = false;
 			viewerParam.reOpenLidar = false;
 
@@ -520,25 +519,25 @@ void roboscanPublisher::setWinName()
 	
 	if( viewerParam.cvShow == false || changedCvShow == false ) return;
 	
-	if( nslConfig.operationModeOpt == OPERATION_MODE_OPTIONS::DISTANCE_MODE){
+	if( viewerParam.imageType == static_cast<int>(OPERATION_MODE_OPTIONS::DISTANCE_MODE)){
 		sprintf(winName,"%s(Dist)", WIN_NAME);
 	}
-	else if( nslConfig.operationModeOpt == OPERATION_MODE_OPTIONS::DISTANCE_AMPLITUDE_MODE){
+	else if( viewerParam.imageType == static_cast<int>(OPERATION_MODE_OPTIONS::DISTANCE_AMPLITUDE_MODE)){
 		sprintf(winName,"%s(Dist/Ampl)", WIN_NAME);
 	}
-	else if( nslConfig.operationModeOpt == OPERATION_MODE_OPTIONS::DISTANCE_GRAYSCALE_MODE){
+	else if( viewerParam.imageType == static_cast<int>(OPERATION_MODE_OPTIONS::DISTANCE_GRAYSCALE_MODE)){
 		sprintf(winName,"%s(Dist/Gray)", WIN_NAME);
 	}
-	else if( nslConfig.operationModeOpt == OPERATION_MODE_OPTIONS::RGB_MODE){
+	else if( viewerParam.imageType == static_cast<int>(OPERATION_MODE_OPTIONS::RGB_MODE)){
 		sprintf(winName,"%s(RGB)", WIN_NAME);
 	}
-	else if( nslConfig.operationModeOpt == OPERATION_MODE_OPTIONS::RGB_DISTANCE_MODE){
+	else if( viewerParam.imageType == static_cast<int>(OPERATION_MODE_OPTIONS::RGB_DISTANCE_MODE)){
 		sprintf(winName,"%s(RGB/Dist)", WIN_NAME);
 	}
-	else if( nslConfig.operationModeOpt == OPERATION_MODE_OPTIONS::RGB_DISTANCE_AMPLITUDE_MODE){
+	else if( viewerParam.imageType == static_cast<int>(OPERATION_MODE_OPTIONS::RGB_DISTANCE_AMPLITUDE_MODE)){
 		sprintf(winName,"%s(RGB/Dist/Ampl)", WIN_NAME);
 	}
-	else if( nslConfig.operationModeOpt == OPERATION_MODE_OPTIONS::RGB_DISTANCE_GRAYSCALE_MODE){
+	else if( viewerParam.imageType == static_cast<int>(OPERATION_MODE_OPTIONS::RGB_DISTANCE_GRAYSCALE_MODE)){
 		sprintf(winName,"%s(RGB/Dist/Gray)", WIN_NAME);
 	}
 	else{
@@ -584,7 +583,7 @@ void roboscanPublisher::initialise()
 
 	rclcpp::Parameter pCvShow("A. cvShow", viewerParam.cvShow);
 	rclcpp::Parameter pLensType("B. lensType", static_cast<int>(nslConfig.lensType));
-	rclcpp::Parameter pImageType("C. imageType", static_cast<int>(nslConfig.operationModeOpt));
+	rclcpp::Parameter pImageType("C. imageType", viewerParam.imageType);
 	rclcpp::Parameter pHdr_mode("D. hdr_mode", static_cast<int>(nslConfig.hdrOpt));
 	rclcpp::Parameter pInt0("E. int0", nslConfig.integrationTime3D);
 	rclcpp::Parameter pInt1("F. int1", nslConfig.integrationTime3DHdr1);
@@ -621,7 +620,7 @@ void roboscanPublisher::initialise()
 //	this->declare_parameter<string>("2. GW Addr", viewerParam.gwAddr);
 	this->declare_parameter<bool>("A. cvShow", viewerParam.cvShow);
 	this->declare_parameter<int>("B. lensType", static_cast<int>(nslConfig.lensType));
-	this->declare_parameter<int>("C. imageType", static_cast<int>(nslConfig.operationModeOpt));
+	this->declare_parameter<int>("C. imageType", viewerParam.imageType);
 	this->declare_parameter<int>("D. hdr_mode", static_cast<int>(nslConfig.hdrOpt));
 	this->declare_parameter<int>("E. int0", nslConfig.integrationTime3D);
 	this->declare_parameter<int>("F. int1", nslConfig.integrationTime3DHdr1);
@@ -697,28 +696,26 @@ void roboscanPublisher::initialise()
 
 
 void roboscanPublisher::startStreaming()
-{
-	toString(nslConfig.operationModeOpt);
-	
-	if( nslConfig.operationModeOpt == OPERATION_MODE_OPTIONS::DISTANCE_MODE){
+{	
+	if( viewerParam.imageType == static_cast<int>(OPERATION_MODE_OPTIONS::DISTANCE_MODE)){
 		nsl_streamingOn(nsl_handle, OPERATION_MODE_OPTIONS::DISTANCE_MODE);
 	}
-	else if( nslConfig.operationModeOpt == OPERATION_MODE_OPTIONS::DISTANCE_AMPLITUDE_MODE){
+	else if( viewerParam.imageType == static_cast<int>(OPERATION_MODE_OPTIONS::DISTANCE_AMPLITUDE_MODE)){
 		nsl_streamingOn(nsl_handle, OPERATION_MODE_OPTIONS::DISTANCE_AMPLITUDE_MODE);
 	}
-	else if( nslConfig.operationModeOpt == OPERATION_MODE_OPTIONS::DISTANCE_GRAYSCALE_MODE){
+	else if( viewerParam.imageType == static_cast<int>(OPERATION_MODE_OPTIONS::DISTANCE_GRAYSCALE_MODE)){
 		nsl_streamingOn(nsl_handle, OPERATION_MODE_OPTIONS::DISTANCE_GRAYSCALE_MODE);
 	}
-	else if( nslConfig.operationModeOpt == OPERATION_MODE_OPTIONS::RGB_MODE){
+	else if( viewerParam.imageType == static_cast<int>(OPERATION_MODE_OPTIONS::RGB_MODE)){
 		nsl_streamingOn(nsl_handle, OPERATION_MODE_OPTIONS::RGB_MODE);
 	}
-	else if( nslConfig.operationModeOpt == OPERATION_MODE_OPTIONS::RGB_DISTANCE_MODE){
+	else if( viewerParam.imageType == static_cast<int>(OPERATION_MODE_OPTIONS::RGB_DISTANCE_MODE)){
 		nsl_streamingOn(nsl_handle, OPERATION_MODE_OPTIONS::RGB_DISTANCE_MODE);
 	}
-	else if( nslConfig.operationModeOpt == OPERATION_MODE_OPTIONS::RGB_DISTANCE_AMPLITUDE_MODE){
+	else if( viewerParam.imageType == static_cast<int>(OPERATION_MODE_OPTIONS::RGB_DISTANCE_AMPLITUDE_MODE)){
 		nsl_streamingOn(nsl_handle, OPERATION_MODE_OPTIONS::RGB_DISTANCE_AMPLITUDE_MODE);
 	}
-	else if( nslConfig.operationModeOpt == OPERATION_MODE_OPTIONS::RGB_DISTANCE_GRAYSCALE_MODE){
+	else if( viewerParam.imageType == static_cast<int>(OPERATION_MODE_OPTIONS::RGB_DISTANCE_GRAYSCALE_MODE)){
 		nsl_streamingOn(nsl_handle, OPERATION_MODE_OPTIONS::RGB_DISTANCE_GRAYSCALE_MODE);
 	}
 	else{
