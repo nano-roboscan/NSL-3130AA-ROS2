@@ -71,16 +71,6 @@ modIndex 3 : 3MHz
 
 transformAngle : angle (rviz-based y-axis rotation)
 ```
-
- # Warning Area
-
-![Area](https://github.com/user-attachments/assets/daa38bf9-88fe-4088-939f-fdec43ee77c0)
-
-# Set Area parameters
-
-![Area parameters](https://github.com/user-attachments/assets/e274dad1-6cf5-4119-a3b6-10e22b473dc0)
-
-
  
  
  
