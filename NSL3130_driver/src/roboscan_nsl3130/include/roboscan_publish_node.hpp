@@ -41,11 +41,12 @@ namespace nanosys {
 		int maxDistance;
 		int pointCloudEdgeThreshold;
 		int imageType;
+		int lensType;
+		double lidarAngle;
 		
 		bool cvShow;
 		bool changedCvShow;
 		bool changedImageType;
-		bool changedIpInfo;
 		bool reOpenLidar;
 		bool saveParam;
 		
@@ -116,6 +117,12 @@ namespace nanosys {
 			    {"RGB_DISTANCE_AMPLITUDE", 7},
 			    {"RGB_DISTANCE_GRAYSCALE", 8}
 			};
+
+			const std::unordered_map<std::string, int> lensMap = {
+			    {"LENS_NF", 0},
+			    {"LENS_SF", 1},
+				{"LENS_WF", 2},
+			};
 			
 			RCLCPP_INFO(this->get_logger(),"Loaded params: path=%s\n", yaml_path_.c_str());
 			
@@ -126,15 +133,20 @@ namespace nanosys {
 				viewerParam.frame_id = config["FrameID"] ? config["FrameID"].as<std::string>() : "roboscan_frame";
 				viewerParam.maxDistance = config["MaxDistance"] ? config["MaxDistance"].as<int>() : 12500;
 				viewerParam.pointCloudEdgeThreshold = config["PointColud EDGE"] ? config["PointColud EDGE"].as<int>() : 200;
-				std::string tmpModoStr = config["ImageType"] ? config["ImageType"].as<std::string>() : "DISTANCE_AMPLITUDE";
+				std::string tmpModeStr = config["ImageType"] ? config["ImageType"].as<std::string>() : "DISTANCE_AMPLITUDE";
+				auto itMode = modeMap.find(tmpModeStr);
+				viewerParam.imageType = (itMode != modeMap.end()) ? itMode->second : 3; // defeault DISTANCE_AMPLITUDE
 
-				auto it = modeMap.find(tmpModoStr);
-				viewerParam.imageType = (it != modeMap.end()) ? it->second : 3; // defeault DISTANCE_AMPLITUDE
+				std::string tmpLensStr = config["LensType"] ? config["LensType"].as<std::string>() : "LENS_SF";
+				auto itLens = lensMap.find(tmpLensStr);
+				viewerParam.lensType = (itLens != lensMap.end()) ? itLens->second : 1; // defeault LENS_SF
 				
-				RCLCPP_INFO(this->get_logger(),"Loaded params: ip=%s, frame_id=%s, max = %d, edge = %d, imgType = %d\n", viewerParam.ipAddr.c_str(), viewerParam.frame_id.c_str(), viewerParam.maxDistance, viewerParam.pointCloudEdgeThreshold, viewerParam.imageType);
+				viewerParam.lidarAngle = config["LidarAngle"] ? config["LidarAngle"].as<double>() : 0;
+
+				RCLCPP_INFO(this->get_logger(),"Loaded params: ip=%s, frame_id=%s, max = %d, edge = %d, imgType = %d, lensType = %d, Angle = %.2f\n", viewerParam.ipAddr.c_str(), viewerParam.frame_id.c_str(), viewerParam.maxDistance, viewerParam.pointCloudEdgeThreshold, viewerParam.imageType, viewerParam.lensType, viewerParam.lidarAngle);
 			}
 			else{
-				RCLCPP_INFO(this->get_logger(),"Not found params: ip=%s, frame_id=%s, max = %d, edge = %d, imgType = %d\n", viewerParam.ipAddr.c_str(), viewerParam.frame_id.c_str(), viewerParam.maxDistance, viewerParam.pointCloudEdgeThreshold, viewerParam.imageType);
+				RCLCPP_INFO(this->get_logger(),"Not found params: ip=%s, frame_id=%s, max = %d, edge = %d, imgType = %d, lensType = %d, Angle = %.2f\n", viewerParam.ipAddr.c_str(), viewerParam.frame_id.c_str(), viewerParam.maxDistance, viewerParam.pointCloudEdgeThreshold, viewerParam.imageType, viewerParam.lensType, viewerParam.lidarAngle);
 			}
 		}
 
@@ -152,8 +164,17 @@ namespace nanosys {
 		        {8, "RGB_DISTANCE_GRAYSCALE"}
 		    };
 
+			const std::unordered_map<int, std::string> lensMap = {
+			    {0, "LENS_NF"},
+			    {1, "LENS_SF"},
+				{2, "LENS_WF"}
+			};
+
 			int imgType = this->get_parameter("C. imageType").as_int();
 			if( imgType < 1 || imgType > 8 ) imgType = 3; // default DISTANCE_AMPLITUDE
+
+			int lensType = this->get_parameter("B. lensType").as_int();
+			if( lensType < 0 || lensType > 2 ) lensType = 1; // default LENS_SF
 			
 	        std::ofstream fout(yaml_path_);
 	        fout << "IP Addr: " << this->get_parameter("0. IP Addr").as_string() << "\n";
@@ -161,7 +182,9 @@ namespace nanosys {
 	        fout << "MaxDistance: " << this->get_parameter("Z. MaxDistance").as_int() << "\n";
 	        fout << "PointColud EDGE: " << this->get_parameter("Y. PointColud EDGE").as_int() << "\n";
 			fout << "ImageType: " << modeMap.at(imgType) << "\n";
-			
+			fout << "LensType: " << lensMap.at(lensType) << "\n";
+	        fout << "LidarAngle: " << this->get_parameter("P. transformAngle").as_double() << "\n";
+
 	        fout.close();
 	        RCLCPP_INFO(this->get_logger(), "Params saved to %s", yaml_path_.c_str());
 	    }

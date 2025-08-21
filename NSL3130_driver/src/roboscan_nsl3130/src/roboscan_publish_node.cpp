@@ -195,12 +195,18 @@ rcl_interfaces::msg::SetParametersResult roboscanPublisher::parametersCallback( 
 		}
 		else if (param.get_name() == "B. lensType")
 		{
-			nslConfig.lensType = static_cast<NslOption::LENS_TYPE>(param.as_int());
+			//nslConfig.lensType = static_cast<NslOption::LENS_TYPE>(param.as_int());
+			int lensType = param.as_int();
+			if( viewerParam.lensType != lensType && lensType >=0 && lensType <= 2){
+				viewerParam.lensType = lensType;
+				viewerParam.reOpenLidar = true;
+				viewerParam.saveParam = true;
+			}
 		}
 		else if (param.get_name() == "C. imageType")
 		{
 			int imgType = param.as_int();			
-			if( viewerParam.imageType != imgType ){
+			if( viewerParam.imageType != imgType && imgType >= 1 && imgType <= 8 ){
 				viewerParam.imageType = imgType;
 				viewerParam.changedImageType = true;
 				viewerParam.saveParam = true;
@@ -208,7 +214,9 @@ rcl_interfaces::msg::SetParametersResult roboscanPublisher::parametersCallback( 
 		}
 		else if (param.get_name() == "D. hdr_mode")
 		{
-			nslConfig.hdrOpt = static_cast<NslOption::HDR_OPTIONS>(param.as_int());
+			int hdr_opt = param.as_int();
+			if( hdr_opt > 2 || hdr_opt < 0 ) hdr_opt = 0;
+			nslConfig.hdrOpt = static_cast<NslOption::HDR_OPTIONS>(hdr_opt);
 		}
 		else if (param.get_name() == "E. int0")
 		{
@@ -232,11 +240,15 @@ rcl_interfaces::msg::SetParametersResult roboscanPublisher::parametersCallback( 
 		}
 		else if (param.get_name() == "J. modIndex")
 		{
-			nslConfig.mod_frequencyOpt = static_cast<NslOption::MODULATION_OPTIONS>(param.as_int());
+			int freq_opt = param.as_int();
+			if( freq_opt > 3 || freq_opt < 0 ) freq_opt = 0;
+			nslConfig.mod_frequencyOpt = static_cast<NslOption::MODULATION_OPTIONS>(freq_opt);
 		}
 		else if (param.get_name() == "K. channel")
 		{
-			nslConfig.mod_channelOpt = static_cast<NslOption::MODULATION_CH_OPTIONS>(param.as_int());
+			int ch_opt = param.as_int();
+			if( ch_opt > 15 || ch_opt < 0 ) ch_opt = 0;
+			nslConfig.mod_channelOpt = static_cast<NslOption::MODULATION_CH_OPTIONS>(ch_opt);
 		}
 		else if (param.get_name() == "L. roi_leftX")
 		{
@@ -285,8 +297,12 @@ rcl_interfaces::msg::SetParametersResult roboscanPublisher::parametersCallback( 
 		}
 		else if (param.get_name() == "P. transformAngle")
 		{
-			nslConfig.lidarAngle = param.as_double();
-			viewerParam.reOpenLidar = true;
+			int lidarAngle = param.as_double();
+			if( viewerParam.lidarAngle != lidarAngle ){
+				viewerParam.lidarAngle = lidarAngle;
+				viewerParam.reOpenLidar = true;
+				viewerParam.saveParam = true;
+			}
 		}
 		else if (param.get_name() == "Q. frameID")
 		{
@@ -380,7 +396,7 @@ rcl_interfaces::msg::SetParametersResult roboscanPublisher::parametersCallback( 
 				RCLCPP_INFO(this->get_logger(), "changed IP addr %s -> %s\n", viewerParam.ipAddr.c_str(), tmpIp.c_str());
 
 				viewerParam.saveParam = true;
-				viewerParam.changedIpInfo = true;
+				viewerParam.reOpenLidar = true;
 				viewerParam.ipAddr = tmpIp;
 			}
 		}
@@ -390,7 +406,7 @@ rcl_interfaces::msg::SetParametersResult roboscanPublisher::parametersCallback( 
 			if( tmpIp != viewerParam.netMask ) {
 				RCLCPP_INFO(this->get_logger(), "changed Netmask addr %s -> %s\n", viewerParam.netMask.c_str(), tmpIp.c_str());
 				viewerParam.saveParam = true;
-				viewerParam.changedIpInfo = true;
+				viewerParam.reOpenLidar = true;
 				viewerParam.netMask= tmpIp;
 			}
 		}
@@ -400,7 +416,7 @@ rcl_interfaces::msg::SetParametersResult roboscanPublisher::parametersCallback( 
 			if( tmpIp != viewerParam.gwAddr ) {
 				RCLCPP_INFO(this->get_logger(), "changed Gw addr %s -> %s\n", viewerParam.gwAddr.c_str(), tmpIp.c_str());
 				viewerParam.saveParam = true;
-				viewerParam.changedIpInfo = true;
+				viewerParam.reOpenLidar = true;
 				viewerParam.gwAddr= tmpIp;
 			}
 		}
@@ -426,7 +442,7 @@ void roboscanPublisher::timeDelay(int milli)
 void roboscanPublisher::renewParameter()
 {
 	this->set_parameter(rclcpp::Parameter("0. IP Addr", viewerParam.ipAddr));
-	this->set_parameter(rclcpp::Parameter("B. lensType", static_cast<int>(nslConfig.lensType)));
+	this->set_parameter(rclcpp::Parameter("B. lensType", viewerParam.lensType));
 	this->set_parameter(rclcpp::Parameter("C. imageType", viewerParam.imageType));
 	this->set_parameter(rclcpp::Parameter("D. hdr_mode", static_cast<int>(nslConfig.hdrOpt)));
 	this->set_parameter(rclcpp::Parameter("E. int0", nslConfig.integrationTime3D));
@@ -439,7 +455,7 @@ void roboscanPublisher::renewParameter()
 	this->set_parameter(rclcpp::Parameter("L. roi_leftX", nslConfig.roiXMin));
 	this->set_parameter(rclcpp::Parameter("M. roi_topY", nslConfig.roiYMin));
 	this->set_parameter(rclcpp::Parameter("N. roi_rightX", nslConfig.roiXMax));
-	this->set_parameter(rclcpp::Parameter("P. transformAngle", nslConfig.lidarAngle));
+	this->set_parameter(rclcpp::Parameter("P. transformAngle", viewerParam.lidarAngle));
 	this->set_parameter(rclcpp::Parameter("Q. frameID", viewerParam.frame_id));
 	this->set_parameter(rclcpp::Parameter("R. medianFilter", static_cast<int>(nslConfig.medianOpt)));
 	this->set_parameter(rclcpp::Parameter("S. gaussianFilter", static_cast<int>(nslConfig.gaussOpt)));
@@ -471,13 +487,15 @@ void roboscanPublisher::setReconfigure()
 	{
 		nsl_streamingOff(nsl_handle);
 		
-		std::cout << " nsl_handle = "<< nsl_handle << "nsl_open :: changedIpInfo = "<< viewerParam.changedIpInfo << " reOpenLidar = "<< viewerParam.reOpenLidar << std::endl;
+		std::cout << " nsl_handle = "<< nsl_handle << "nsl_open :: reOpenLidar = "<< viewerParam.reOpenLidar << std::endl;
 		
-		if( nsl_handle < 0 && (viewerParam.changedIpInfo || viewerParam.reOpenLidar) ){
+		if( nsl_handle < 0 && viewerParam.reOpenLidar ){
+
+			nslConfig.lidarAngle = viewerParam.lidarAngle;
+			nslConfig.lensType = static_cast<NslOption::LENS_TYPE>(viewerParam.lensType);
 			nsl_handle = nsl_open(viewerParam.ipAddr.c_str(), &nslConfig, FUNCTION_OPTIONS::FUNC_ON);
 			//nsl_setColorRange(viewerParam.maxDistance, MAX_GRAYSCALE_VALUE, NslOption::FUNCTION_OPTIONS::FUNC_OFF);
 			nsl_setColorRange(viewerParam.maxDistance, MAX_GRAYSCALE_VALUE, NslOption::FUNCTION_OPTIONS::FUNC_ON);
-			viewerParam.changedIpInfo = false;
 			viewerParam.reOpenLidar = false;
 
 			if( nsl_handle >= 0 ){
@@ -559,11 +577,12 @@ void roboscanPublisher::initialise()
 	viewerParam.cvShow = false;
 	viewerParam.changedCvShow = true;
 	viewerParam.changedImageType = false;
-	viewerParam.changedIpInfo = false;
 	viewerParam.reOpenLidar = false;
 	viewerParam.maxDistance = 12500;
 	viewerParam.pointCloudEdgeThreshold = 200;
 	viewerParam.imageType = 3;
+	viewerParam.lensType = 1;
+	viewerParam.lidarAngle = 0;
 
 	viewerParam.frame_id = "roboscan_frame";
 	viewerParam.ipAddr = "192.168.0.220";
@@ -572,8 +591,8 @@ void roboscanPublisher::initialise()
 
 	load_params();
 
-	nslConfig.lidarAngle = 0;
-	nslConfig.lensType = NslOption::LENS_TYPE::LENS_SF;
+	nslConfig.lidarAngle = viewerParam.lidarAngle;
+	nslConfig.lensType = static_cast<NslOption::LENS_TYPE>(viewerParam.lensType);
 
 	initNslLibrary();
 	setWinName();
@@ -583,7 +602,7 @@ void roboscanPublisher::initialise()
 //	rclcpp::Parameter pGWAddr("2. GW Addr", viewerParam.gwAddr);
 
 	rclcpp::Parameter pCvShow("A. cvShow", viewerParam.cvShow);
-	rclcpp::Parameter pLensType("B. lensType", static_cast<int>(nslConfig.lensType));
+	rclcpp::Parameter pLensType("B. lensType", viewerParam.lensType);
 	rclcpp::Parameter pImageType("C. imageType", viewerParam.imageType);
 	rclcpp::Parameter pHdr_mode("D. hdr_mode", static_cast<int>(nslConfig.hdrOpt));
 	rclcpp::Parameter pInt0("E. int0", nslConfig.integrationTime3D);
@@ -598,7 +617,7 @@ void roboscanPublisher::initialise()
 	rclcpp::Parameter pRoi_rightX("N. roi_rightX", nslConfig.roiXMax);
 	//rclcpp::Parameter pRoi_bottomY("O. roi_bottomY", nslConfig.roiYMax);
 	
-	rclcpp::Parameter pTransformAngle("P. transformAngle", nslConfig.lidarAngle);
+	rclcpp::Parameter pTransformAngle("P. transformAngle", viewerParam.lidarAngle);
 	rclcpp::Parameter pFrameID("Q. frameID", viewerParam.frame_id);
 	rclcpp::Parameter pMedianFilter("R. medianFilter", static_cast<int>(nslConfig.medianOpt));
 	rclcpp::Parameter pAverageFilter("S. gaussianFilter", static_cast<int>(nslConfig.gaussOpt));
@@ -620,7 +639,7 @@ void roboscanPublisher::initialise()
 //	this->declare_parameter<string>("1. Net Mask", viewerParam.netMask);
 //	this->declare_parameter<string>("2. GW Addr", viewerParam.gwAddr);
 	this->declare_parameter<bool>("A. cvShow", viewerParam.cvShow);
-	this->declare_parameter<int>("B. lensType", static_cast<int>(nslConfig.lensType));
+	this->declare_parameter<int>("B. lensType", viewerParam.lensType);
 	this->declare_parameter<int>("C. imageType", viewerParam.imageType);
 	this->declare_parameter<int>("D. hdr_mode", static_cast<int>(nslConfig.hdrOpt));
 	this->declare_parameter<int>("E. int0", nslConfig.integrationTime3D);
@@ -635,7 +654,7 @@ void roboscanPublisher::initialise()
 	this->declare_parameter<int>("N. roi_rightX", nslConfig.roiXMax);
 //	this->declare_parameter<int>("O. roi_bottomY", nslConfig.roiYMax);
 
-	this->declare_parameter<double>("P. transformAngle", nslConfig.lidarAngle);
+	this->declare_parameter<double>("P. transformAngle", viewerParam.lidarAngle);
 	this->declare_parameter<string>("Q. frameID", viewerParam.frame_id);
 	this->declare_parameter<bool>("R. medianFilter", static_cast<int>(nslConfig.medianOpt));
 	this->declare_parameter<bool>("S. gaussianFilter", static_cast<int>(nslConfig.gaussOpt));
