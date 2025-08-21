@@ -45,9 +45,9 @@ find_package(PCL REQUIRED COMPONENTS common)
 
 # nanosystems library 
 find_path(NSL_LIB_INCLUDE_DIR NAMES nanolib.h PATHS nsl_lib/include REQUIRED)
-#find_library(NSL_LIB_PATH NAMES nanolib PATHS nsl_lib/lib/linux-7.5/static REQUIRED)
 find_library(NSL_LIB_PATH NAMES nanolib PATHS nsl_lib/lib/aarch-7.5/static REQUIRED)
-
+#find_library(NSL_LIB_PATH NAMES nanolib PATHS nsl_lib/lib/aarch-7.5/shared REQUIRED)
+get_filename_component(NSL_LIB_DIR ${NSL_LIB_PATH} DIRECTORY)
 
 link_directories(${PCL_LIBRARY_DIRS})
 #add_definition($PCL_DEFINITIONS})
@@ -88,6 +88,12 @@ ${Boost_LIBRARIES}
 ${NSL_LIB_PATH}
 yaml-cpp
 Eigen3::Eigen
+)
+
+# 런타임 시 .so 찾도록 RPATH 설정
+set_target_properties(roboscan_publish_node PROPERTIES
+  BUILD_RPATH "${NSL_LIB_DIR}"
+  INSTALL_RPATH "${NSL_LIB_DIR}"
 )
 
 install(TARGETS roboscan_publish_node
