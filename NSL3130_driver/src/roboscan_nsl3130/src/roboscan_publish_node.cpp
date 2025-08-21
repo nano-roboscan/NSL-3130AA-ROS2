@@ -563,6 +563,7 @@ void roboscanPublisher::initialise()
 	viewerParam.reOpenLidar = false;
 	viewerParam.maxDistance = 12500;
 	viewerParam.pointCloudEdgeThreshold = 200;
+	viewerParam.imageType = 3;
 
 	viewerParam.frame_id = "roboscan_frame";
 	viewerParam.ipAddr = "192.168.0.220";

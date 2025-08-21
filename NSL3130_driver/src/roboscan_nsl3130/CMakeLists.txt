@@ -26,7 +26,7 @@ find_package(yaml-cpp REQUIRED)
 
 find_package(pcl_conversions REQUIRED)
 find_package(sensor_msgs REQUIRED)
-find_package(Eigen REQUIRED)
+#find_package(Eigen REQUIRED) 
 find_package(Boost REQUIRED COMPONENTS system)
 find_package(Boost REQUIRED COMPONENTS system thread)
 find_package(rviz_common REQUIRED)
@@ -38,15 +38,15 @@ find_package(nav_msgs)
 find_package(std_msgs)
 
 find_package(eigen3_cmake_module REQUIRED)
-find_package(Eigen3)
+find_package(Eigen3 REQUIRED NO_MODULE)
 find_package(OpenCV REQUIRED)
 #find_package(PCL REQUIRED COMPONENTS common io)
 find_package(PCL REQUIRED COMPONENTS common)
 
 # nanosystems library 
 find_path(NSL_LIB_INCLUDE_DIR NAMES nanolib.h PATHS nsl_lib/include REQUIRED)
-find_library(NSL_LIB_PATH NAMES nanolib PATHS nsl_lib/lib/linux-7.5/static REQUIRED)
-#find_library(NSL_LIB_PATH NAMES nanolib PATHS nsl_lib/lib/aarch-7.5/static REQUIRED)
+#find_library(NSL_LIB_PATH NAMES nanolib PATHS nsl_lib/lib/linux-7.5/static REQUIRED)
+find_library(NSL_LIB_PATH NAMES nanolib PATHS nsl_lib/lib/aarch-7.5/static REQUIRED)
 
 
 link_directories(${PCL_LIBRARY_DIRS})
@@ -56,7 +56,6 @@ include_directories(include/
 ${PCL_INCLUDE_DIRS} 
 ${Boost_INCLUDE_DIRS} 
 ${OpenCV_INCLUDE_DIRS} 
-${Eigen_INCLUDE_DIRS} 
 ${NSL_LIB_INCLUDE_DIR})
 
 
@@ -88,6 +87,7 @@ ${Boost_SYSTEM_LIBRARY}
 ${Boost_LIBRARIES}
 ${NSL_LIB_PATH}
 yaml-cpp
+Eigen3::Eigen
 )
 
 install(TARGETS roboscan_publish_node
