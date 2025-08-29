@@ -45,8 +45,12 @@ find_package(PCL REQUIRED COMPONENTS common)
 
 # nanosystems library 
 find_path(NSL_LIB_INCLUDE_DIR NAMES nanolib.h PATHS nsl_lib/include REQUIRED)
-find_library(NSL_LIB_PATH NAMES nanolib PATHS nsl_lib/lib/aarch-7.5/static REQUIRED)
-#find_library(NSL_LIB_PATH NAMES nanolib PATHS nsl_lib/lib/aarch-7.5/shared REQUIRED)
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64")
+find_library(NSL_LIB_PATH NAMES nanolib PATHS nsl_lib/lib/aarch-7.5/shared REQUIRED)
+elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64")
+find_library(NSL_LIB_PATH NAMES nanolib PATHS nsl_lib/lib/linux-7.5/shared REQUIRED)
+endif()
+
 get_filename_component(NSL_LIB_DIR ${NSL_LIB_PATH} DIRECTORY)
 
 link_directories(${PCL_LIBRARY_DIRS})
