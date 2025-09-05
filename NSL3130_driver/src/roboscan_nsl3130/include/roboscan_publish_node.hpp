@@ -59,20 +59,6 @@ namespace nanosys {
 
 	class roboscanPublisher : public rclcpp::Node { 
 
-		static const int PIXEL_VALID_DATA = 64000;
-		static const int LOW_AMPLITUDE = 64001;
-		static const int ADC_OVERFLOW = 64002;
-		static const int SATURATION = 64003;
-		static const int BAD_PIXEL = 64004;
-		static const int INTERFERENCE = 64007;
-		static const int EDGE_FILTERED = 64008;
-
-		const int width   = 320;
-		const int width2  = 160;
-		const int height  = 240;
-		const int height2 = 120;
-		const double sensorPixelSizeMM = 0.02; //camera sensor pixel size 20x20 um
-
 	public:
 		roboscanPublisher();
 		~roboscanPublisher();
@@ -190,6 +176,7 @@ namespace nanosys {
 	    }
 		
 		void initNslLibrary();
+		void setMatrixColor(cv::Mat image, int x, int y, NslOption::NslVec3b color);
 		void timeDelay(int milli);
 		void renewParameter();
 		void getMouseEvent( int &mouse_xpos, int &mouse_ypos );

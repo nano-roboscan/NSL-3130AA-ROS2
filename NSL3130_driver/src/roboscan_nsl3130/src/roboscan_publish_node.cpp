@@ -448,7 +448,7 @@ void roboscanPublisher::renewParameter()
 	this->set_parameter(rclcpp::Parameter("E. int0", nslConfig.integrationTime3D));
 	this->set_parameter(rclcpp::Parameter("F. int1", nslConfig.integrationTime3DHdr1));
 	this->set_parameter(rclcpp::Parameter("G. int2", nslConfig.integrationTime3DHdr2));
-	this->set_parameter(rclcpp::Parameter("H. intGr", nslConfig.integrationTime3DHdr1));
+	this->set_parameter(rclcpp::Parameter("H. intGr", nslConfig.integrationTimeGrayScale));
 	this->set_parameter(rclcpp::Parameter("I. minAmplitude", nslConfig.minAmplitude));
 	this->set_parameter(rclcpp::Parameter("J. modIndex", static_cast<int>(nslConfig.mod_frequencyOpt)));
 	this->set_parameter(rclcpp::Parameter("K. channel", static_cast<int>(nslConfig.mod_channelOpt)));
@@ -809,7 +809,7 @@ cv::Mat roboscanPublisher::addDistanceInfo(cv::Mat distMat, NslPCD *frame)
 	return distMat;
 }
 
-void setMatrixColor(Mat image, int x, int y, NslVec3b color)
+void roboscanPublisher::setMatrixColor(Mat image, int x, int y, NslVec3b color)
 {
 	image.at<Vec3b>(y,x)[0] = color.b;
 	image.at<Vec3b>(y,x)[1] = color.g;
