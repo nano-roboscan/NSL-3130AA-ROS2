@@ -89,26 +89,95 @@ namespace nanosys {
 		int 			nsl_handle;
 	private:
 		std::string yaml_path_;
-	
+	    const std::unordered_map<int, std::string> modeIntMap = {
+	        {1, "DISTANCE"},
+	        {2, "GRAYSCALE"},
+			{3, "DISTANCE_AMPLITUDE"},
+	        {4, "DISTANCE_GRAYSCALE"},
+	        {5, "RGB"},
+	        {6, "RGB_DISTANCE"},
+	        {7, "RGB_DISTANCE_AMPLITUDE"},
+	        {8, "RGB_DISTANCE_GRAYSCALE"}
+	    };
+
+		const std::unordered_map<int, std::string> lensIntMap = {
+		    {0, "LENS_NF"},
+		    {1, "LENS_SF"},
+			{2, "LENS_WF"}
+		};
+
+		const std::unordered_map<int, std::string> hdrIntMap = {
+		    {0, "HDR_None"},
+		    {1, "HDR_Spatial"},
+			{2, "HDR_Temporal"}
+		};		
+
+		const std::unordered_map<int, std::string> modulationIntMap = {
+		    {0, "MOD_12Mhz"},
+		    {1, "MOD_24Mhz"},
+			{2, "MOD_6Mhz"},
+			{3, "MOD_3Mhz"}
+		};		
+
+		const std::unordered_map<int, std::string> DBIntMap = {
+		    {0, "DB_Off"},
+		    {1, "DB_6Mhz"},
+			{2, "DB_3Mhz"}
+		};		
+
+		const std::unordered_map<int, std::string> DBOptIntMap = {
+		    {0, "DB_AVOIDANCE"},
+		    {1, "DB_CORRECTION"},
+			{2, "DB_FULL_CORRECTION"}
+		};		
+
+
+		const std::unordered_map<std::string, int> modeStrMap = {
+			{"DISTANCE", 1},
+			{"GRAYSCALE", 2},
+			{"DISTANCE_AMPLITUDE", 3},
+			{"DISTANCE_GRAYSCALE", 4},
+			{"RGB", 5},
+			{"RGB_DISTANCE", 6},
+			{"RGB_DISTANCE_AMPLITUDE", 7},
+			{"RGB_DISTANCE_GRAYSCALE", 8}
+		};
+		
+		const std::unordered_map<std::string, int> lensStrMap = {
+			{"LENS_NF", 0},
+			{"LENS_SF", 1},
+			{"LENS_WF", 2},
+		};
+
+		const std::unordered_map<std::string, int> hdrStrMap = {
+		    {"HDR_None", 0},
+		    {"HDR_Spatial", 1},
+			{"HDR_Temporal", 2}
+		};		
+
+		const std::unordered_map<std::string, int> modulationStrMap = {
+		    {"MOD_12Mhz", 0},
+		    {"MOD_24Mhz", 1},
+			{"MOD_6Mhz", 2},
+			{"MOD_3Mhz", 3}
+		};		
+
+		const std::unordered_map<std::string, int> DBStrMap = {
+		    {"DB_Off", 0},
+		    {"DB_6Mhz", 1},
+			{"DB_3Mhz", 2}
+		};		
+
+		const std::unordered_map<std::string, int> DBOptStrMap = {
+		    {"DB_AVOIDANCE", 0},
+		    {"DB_CORRECTION", 1},
+			{"DB_FULL_CORRECTION", 2}
+		};		
+
+		
 		// load yaml
 		void load_params()
 		{
-			const std::unordered_map<std::string, int> modeMap = {
-			    {"DISTANCE", 1},
-			    {"GRAYSCALE", 2},
-				{"DISTANCE_AMPLITUDE", 3},
-			    {"DISTANCE_GRAYSCALE", 4},
-			    {"RGB", 5},
-			    {"RGB_DISTANCE", 6},
-			    {"RGB_DISTANCE_AMPLITUDE", 7},
-			    {"RGB_DISTANCE_GRAYSCALE", 8}
-			};
-
-			const std::unordered_map<std::string, int> lensMap = {
-			    {"LENS_NF", 0},
-			    {"LENS_SF", 1},
-				{"LENS_WF", 2},
-			};
 			
 			RCLCPP_INFO(this->get_logger(),"Loaded params: path=%s\n", yaml_path_.c_str());
 			
@@ -120,12 +189,12 @@ namespace nanosys {
 				viewerParam.maxDistance = config["MaxDistance"] ? config["MaxDistance"].as<int>() : 12500;
 				viewerParam.pointCloudEdgeThreshold = config["PointColud EDGE"] ? config["PointColud EDGE"].as<int>() : 200;
 				std::string tmpModeStr = config["ImageType"] ? config["ImageType"].as<std::string>() : "DISTANCE_AMPLITUDE";
-				auto itMode = modeMap.find(tmpModeStr);
-				viewerParam.imageType = (itMode != modeMap.end()) ? itMode->second : 3; // defeault DISTANCE_AMPLITUDE
+				auto itMode = modeStrMap.find(tmpModeStr);
+				viewerParam.imageType = (itMode != modeStrMap.end()) ? itMode->second : 3; // defeault DISTANCE_AMPLITUDE
 
 				std::string tmpLensStr = config["LensType"] ? config["LensType"].as<std::string>() : "LENS_SF";
-				auto itLens = lensMap.find(tmpLensStr);
-				viewerParam.lensType = (itLens != lensMap.end()) ? itLens->second : 1; // defeault LENS_SF
+				auto itLens = lensStrMap.find(tmpLensStr);
+				viewerParam.lensType = (itLens != lensStrMap.end()) ? itLens->second : 1; // defeault LENS_SF
 				
 				viewerParam.lidarAngle = config["LidarAngle"] ? config["LidarAngle"].as<double>() : 0;
 
@@ -139,23 +208,6 @@ namespace nanosys {
 	    // save yaml
 	    void save_params()
 	    {
-		    const std::unordered_map<int, std::string> modeMap = {
-		        {1, "DISTANCE"},
-		        {2, "GRAYSCALE"},
-				{3, "DISTANCE_AMPLITUDE"},
-		        {4, "DISTANCE_GRAYSCALE"},
-		        {5, "RGB"},
-		        {6, "RGB_DISTANCE"},
-		        {7, "RGB_DISTANCE_AMPLITUDE"},
-		        {8, "RGB_DISTANCE_GRAYSCALE"}
-		    };
-
-			const std::unordered_map<int, std::string> lensMap = {
-			    {0, "LENS_NF"},
-			    {1, "LENS_SF"},
-				{2, "LENS_WF"}
-			};
-
 			int imgType = this->get_parameter("C. imageType").as_int();
 			if( imgType < 1 || imgType > 8 ) imgType = 3; // default DISTANCE_AMPLITUDE
 
@@ -167,8 +219,8 @@ namespace nanosys {
 	        fout << "FrameID: " << this->get_parameter("Q. frameID").as_string() << "\n";
 	        fout << "MaxDistance: " << this->get_parameter("Z. MaxDistance").as_int() << "\n";
 	        fout << "PointColud EDGE: " << this->get_parameter("Y. PointColud EDGE").as_int() << "\n";
-			fout << "ImageType: " << modeMap.at(imgType) << "\n";
-			fout << "LensType: " << lensMap.at(lensType) << "\n";
+			fout << "ImageType: " << modeIntMap.at(imgType) << "\n";
+			fout << "LensType: " << lensIntMap.at(lensType) << "\n";
 	        fout << "LidarAngle: " << this->get_parameter("P. transformAngle").as_double() << "\n";
 
 	        fout.close();
@@ -184,6 +236,8 @@ namespace nanosys {
 		void setWinName();
 		void paramDump(const std::string & filename);
 		void paramLoad();
+		rcl_interfaces::msg::ParameterDescriptor create_Slider(const std::string &description,int from, int to, int step);
+		rcl_interfaces::msg::ParameterDescriptor create_Slider(const std::string &description, double from, double to, double step);
 
 		OnSetParametersCallbackHandle::SharedPtr callback_handle_;
 		rcl_interfaces::msg::SetParametersResult parametersCallback( const std::vector<rclcpp::Parameter> &parameters);

@@ -195,8 +195,10 @@ rcl_interfaces::msg::SetParametersResult roboscanPublisher::parametersCallback( 
 		}
 		else if (param.get_name() == "B. lensType")
 		{
-			//nslConfig.lensType = static_cast<NslOption::LENS_TYPE>(param.as_int());
-			int lensType = param.as_int();
+			string strLensType = param.as_string();
+			auto itLens = lensStrMap.find(strLensType);
+			int lensType = (itLens != lensStrMap.end()) ? itLens->second : 1; // defeault LENS_SF
+
 			if( viewerParam.lensType != lensType && lensType >=0 && lensType <= 2){
 				viewerParam.lensType = lensType;
 				viewerParam.reOpenLidar = true;
@@ -205,7 +207,10 @@ rcl_interfaces::msg::SetParametersResult roboscanPublisher::parametersCallback( 
 		}
 		else if (param.get_name() == "C. imageType")
 		{
-			int imgType = param.as_int();			
+			string strImgType = param.as_string();
+			auto itMode = modeStrMap.find(strImgType);
+			int imgType = (itMode != modeStrMap.end()) ? itMode->second : 3; // defeault DISTANCE_AMPLITUDE
+
 			if( viewerParam.imageType != imgType && imgType >= 1 && imgType <= 8 ){
 				viewerParam.imageType = imgType;
 				viewerParam.changedImageType = true;
@@ -214,8 +219,10 @@ rcl_interfaces::msg::SetParametersResult roboscanPublisher::parametersCallback( 
 		}
 		else if (param.get_name() == "D. hdr_mode")
 		{
-			int hdr_opt = param.as_int();
-			if( hdr_opt > 2 || hdr_opt < 0 ) hdr_opt = 0;
+			string strHdrType = param.as_string();
+			auto itHdr = hdrStrMap.find(strHdrType);
+			int hdr_opt = (itHdr != hdrStrMap.end()) ? itHdr->second : 0; // Hdr OFF
+
 			nslConfig.hdrOpt = static_cast<NslOption::HDR_OPTIONS>(hdr_opt);
 		}
 		else if (param.get_name() == "E. int0")
@@ -240,8 +247,10 @@ rcl_interfaces::msg::SetParametersResult roboscanPublisher::parametersCallback( 
 		}
 		else if (param.get_name() == "J. modIndex")
 		{
-			int freq_opt = param.as_int();
-			if( freq_opt > 3 || freq_opt < 0 ) freq_opt = 0;
+			string strFreqType = param.as_string();
+			auto itFreq = modulationStrMap.find(strFreqType);
+			int freq_opt = (itFreq != modulationStrMap.end()) ? itFreq->second : 0; // 12Mhz
+
 			nslConfig.mod_frequencyOpt = static_cast<NslOption::MODULATION_OPTIONS>(freq_opt);
 		}
 		else if (param.get_name() == "K. channel")
@@ -359,14 +368,17 @@ rcl_interfaces::msg::SetParametersResult roboscanPublisher::parametersCallback( 
 		}
 		else if (param.get_name() == "W. dualBeam")
 		{
-			int dualBeam = param.as_int();
-			if( dualBeam > 2 || dualBeam < 0 ) dualBeam = 0;
+			string strDBType = param.as_string();
+			auto itDb = DBStrMap.find(strDBType);
+			int dualBeam = (itDb != DBStrMap.end()) ? itDb->second : 0; // DB OFF
+
 			nslConfig.dbModOpt = static_cast<NslOption::DUALBEAM_MOD_OPTIONS>(dualBeam);
 		}
 		else if (param.get_name() == "W. dualBeamOption")
 		{
-			int dualBeamOpt = param.as_int();
-			if( dualBeamOpt > 2 || dualBeamOpt < 0 ) dualBeamOpt = 0;
+			string strDBOptType = param.as_string();
+			auto itDbOpt = DBOptStrMap.find(strDBOptType);
+			int dualBeamOpt = (itDbOpt != DBOptStrMap.end()) ? itDbOpt->second : 0; // DB_AVOIDANCE
 			nslConfig.dbOpsOpt = static_cast<NslOption::DUALBEAM_OPERATION_OPTIONS>(dualBeamOpt);
 		}
 		else if (param.get_name() == "X. grayscale LED")
@@ -442,15 +454,15 @@ void roboscanPublisher::timeDelay(int milli)
 void roboscanPublisher::renewParameter()
 {
 	this->set_parameter(rclcpp::Parameter("0. IP Addr", viewerParam.ipAddr));
-	this->set_parameter(rclcpp::Parameter("B. lensType", viewerParam.lensType));
-	this->set_parameter(rclcpp::Parameter("C. imageType", viewerParam.imageType));
-	this->set_parameter(rclcpp::Parameter("D. hdr_mode", static_cast<int>(nslConfig.hdrOpt)));
+	this->set_parameter(rclcpp::Parameter("B. lensType", lensIntMap.at(viewerParam.lensType)));
+	this->set_parameter(rclcpp::Parameter("C. imageType", modeIntMap.at(viewerParam.imageType)));
+	this->set_parameter(rclcpp::Parameter("D. hdr_mode", hdrIntMap.at(static_cast<int>(nslConfig.hdrOpt))));
 	this->set_parameter(rclcpp::Parameter("E. int0", nslConfig.integrationTime3D));
 	this->set_parameter(rclcpp::Parameter("F. int1", nslConfig.integrationTime3DHdr1));
 	this->set_parameter(rclcpp::Parameter("G. int2", nslConfig.integrationTime3DHdr2));
 	this->set_parameter(rclcpp::Parameter("H. intGr", nslConfig.integrationTimeGrayScale));
 	this->set_parameter(rclcpp::Parameter("I. minAmplitude", nslConfig.minAmplitude));
-	this->set_parameter(rclcpp::Parameter("J. modIndex", static_cast<int>(nslConfig.mod_frequencyOpt)));
+	this->set_parameter(rclcpp::Parameter("J. modIndex", modulationIntMap.at(static_cast<int>(nslConfig.mod_frequencyOpt))));
 	this->set_parameter(rclcpp::Parameter("K. channel", static_cast<int>(nslConfig.mod_channelOpt)));
 	this->set_parameter(rclcpp::Parameter("L. roi_leftX", nslConfig.roiXMin));
 	this->set_parameter(rclcpp::Parameter("M. roi_topY", nslConfig.roiYMin));
@@ -459,14 +471,14 @@ void roboscanPublisher::renewParameter()
 	this->set_parameter(rclcpp::Parameter("Q. frameID", viewerParam.frame_id));
 	this->set_parameter(rclcpp::Parameter("R. medianFilter", static_cast<int>(nslConfig.medianOpt)));
 	this->set_parameter(rclcpp::Parameter("S. gaussianFilter", static_cast<int>(nslConfig.gaussOpt)));
-	this->set_parameter(rclcpp::Parameter("T. temporalFilterFactor", nslConfig.temporalFactorValue));
+	this->set_parameter(rclcpp::Parameter("T. temporalFilterFactor", nslConfig.temporalFactorValue/1000.0));
 	this->set_parameter(rclcpp::Parameter("T. temporalFilterFactorThreshold", nslConfig.temporalThresholdValue));
 	this->set_parameter(rclcpp::Parameter("U. edgeFilterThreshold", nslConfig.edgeThresholdValue));
 	
 	this->set_parameter(rclcpp::Parameter("V. interferenceDetectionLimit", nslConfig.interferenceDetectionLimitValue));
 	this->set_parameter(rclcpp::Parameter("V. useLastValue", static_cast<int>(nslConfig.interferenceDetectionLastValueOpt)));
-	this->set_parameter(rclcpp::Parameter("W. dualBeam", static_cast<int>(nslConfig.dbModOpt)));
-	this->set_parameter(rclcpp::Parameter("W. dualBeamOption", static_cast<int>(nslConfig.dbOpsOpt)));
+	this->set_parameter(rclcpp::Parameter("W. dualBeam", DBIntMap.at(static_cast<int>(nslConfig.dbModOpt))));
+	this->set_parameter(rclcpp::Parameter("W. dualBeamOption",DBOptIntMap.at(static_cast<int>(nslConfig.dbOpsOpt))));
 	this->set_parameter(rclcpp::Parameter("X. grayscale LED", static_cast<int>(nslConfig.grayscaleIlluminationOpt)));
 	this->set_parameter(rclcpp::Parameter("Y. PointColud EDGE", viewerParam.pointCloudEdgeThreshold));
 	this->set_parameter(rclcpp::Parameter("Z. MaxDistance", viewerParam.maxDistance));
@@ -540,6 +552,9 @@ void roboscanPublisher::setWinName()
 	if( viewerParam.imageType == static_cast<int>(OPERATION_MODE_OPTIONS::DISTANCE_MODE)){
 		sprintf(winName,"%s(Dist)", WIN_NAME);
 	}
+	else if( viewerParam.imageType == static_cast<int>(OPERATION_MODE_OPTIONS::GRAYSCALE_MODE)){
+		sprintf(winName,"%s(Gray)", WIN_NAME);
+	}
 	else if( viewerParam.imageType == static_cast<int>(OPERATION_MODE_OPTIONS::DISTANCE_AMPLITUDE_MODE)){
 		sprintf(winName,"%s(Dist/Ampl)", WIN_NAME);
 	}
@@ -567,6 +582,33 @@ void roboscanPublisher::setWinName()
 	cv::setMouseCallback(winName, callback_mouse_click, NULL);
 }
 
+rcl_interfaces::msg::ParameterDescriptor roboscanPublisher::create_Slider(const std::string &description, int from, int to, int step)
+{
+    rcl_interfaces::msg::ParameterDescriptor desc;
+    desc.description = description;
+
+    rcl_interfaces::msg::IntegerRange range;
+    range.from_value = from;
+    range.to_value = to ;
+    range.step = step;
+
+    desc.integer_range.push_back(range);
+    return desc;
+}
+
+rcl_interfaces::msg::ParameterDescriptor roboscanPublisher::create_Slider(const std::string &description, double from, double to, double step)
+{
+    rcl_interfaces::msg::ParameterDescriptor desc;
+    desc.description = description;
+
+    rcl_interfaces::msg::FloatingPointRange range;
+    range.from_value = from;
+    range.to_value = to;
+    range.step = step;
+
+    desc.floating_point_range.push_back(range);
+    return desc;
+}
 
 void roboscanPublisher::initialise()
 {
@@ -602,15 +644,15 @@ void roboscanPublisher::initialise()
 //	rclcpp::Parameter pGWAddr("2. GW Addr", viewerParam.gwAddr);
 
 	rclcpp::Parameter pCvShow("A. cvShow", viewerParam.cvShow);
-	rclcpp::Parameter pLensType("B. lensType", viewerParam.lensType);
-	rclcpp::Parameter pImageType("C. imageType", viewerParam.imageType);
-	rclcpp::Parameter pHdr_mode("D. hdr_mode", static_cast<int>(nslConfig.hdrOpt));
+	rclcpp::Parameter pLensType("B. lensType", lensIntMap.at(viewerParam.lensType));
+	rclcpp::Parameter pImageType("C. imageType", modeIntMap.at(viewerParam.imageType));
+	rclcpp::Parameter pHdr_mode("D. hdr_mode", hdrIntMap.at(static_cast<int>(nslConfig.hdrOpt)));
 	rclcpp::Parameter pInt0("E. int0", nslConfig.integrationTime3D);
 	rclcpp::Parameter pInt1("F. int1", nslConfig.integrationTime3DHdr1);
 	rclcpp::Parameter pInt2("G. int2", nslConfig.integrationTime3DHdr2);
 	rclcpp::Parameter pIntGr("H. intGr", nslConfig.integrationTimeGrayScale);
 	rclcpp::Parameter pMinAmplitude("I. minAmplitude", nslConfig.minAmplitude);
-	rclcpp::Parameter pModIndex("J. modIndex", static_cast<int>(nslConfig.mod_frequencyOpt));
+	rclcpp::Parameter pModIndex("J. modIndex", modulationIntMap.at(static_cast<int>(nslConfig.mod_frequencyOpt)));
 	rclcpp::Parameter pChannel("K. channel", static_cast<int>(nslConfig.mod_channelOpt));
 	rclcpp::Parameter pRoi_leftX("L. roi_leftX", nslConfig.roiXMin);
 	rclcpp::Parameter pRoi_topY("M. roi_topY", nslConfig.roiYMin);
@@ -621,15 +663,15 @@ void roboscanPublisher::initialise()
 	rclcpp::Parameter pFrameID("Q. frameID", viewerParam.frame_id);
 	rclcpp::Parameter pMedianFilter("R. medianFilter", static_cast<int>(nslConfig.medianOpt));
 	rclcpp::Parameter pAverageFilter("S. gaussianFilter", static_cast<int>(nslConfig.gaussOpt));
-	rclcpp::Parameter pTemporalFilterFactor("T. temporalFilterFactor", nslConfig.temporalFactorValue);
+	rclcpp::Parameter pTemporalFilterFactor("T. temporalFilterFactor", nslConfig.temporalFactorValue/1000.0);
 	rclcpp::Parameter pTemporalFilterThreshold("T. temporalFilterFactorThreshold", nslConfig.temporalThresholdValue);
 	rclcpp::Parameter pEdgeFilterThreshold("U. edgeFilterThreshold", nslConfig.edgeThresholdValue);
 	rclcpp::Parameter pInterferenceDetectionLimit("V. interferenceDetectionLimit", nslConfig.interferenceDetectionLimitValue);
 	rclcpp::Parameter pUseLastValue("V. useLastValue", static_cast<int>(nslConfig.interferenceDetectionLastValueOpt));
 
 
-	rclcpp::Parameter pDualBeam("W. dualBeam", static_cast<int>(nslConfig.dbModOpt));
-	rclcpp::Parameter pDualBeamOpt("W. dualBeamOption", static_cast<int>(nslConfig.dbOpsOpt));	
+	rclcpp::Parameter pDualBeam("W. dualBeam", DBIntMap.at(static_cast<int>(nslConfig.dbModOpt)));
+	rclcpp::Parameter pDualBeamOpt("W. dualBeamOption", DBOptIntMap.at(static_cast<int>(nslConfig.dbOpsOpt)));	
 
 	rclcpp::Parameter pGrayLED("X. grayscale LED", static_cast<int>(nslConfig.grayscaleIlluminationOpt));
 	rclcpp::Parameter pPCEdgeFilter("Y. PointColud EDGE", viewerParam.pointCloudEdgeThreshold);
@@ -639,37 +681,73 @@ void roboscanPublisher::initialise()
 //	this->declare_parameter<string>("1. Net Mask", viewerParam.netMask);
 //	this->declare_parameter<string>("2. GW Addr", viewerParam.gwAddr);
 	this->declare_parameter<bool>("A. cvShow", viewerParam.cvShow);
-	this->declare_parameter<int>("B. lensType", viewerParam.lensType);
-	this->declare_parameter<int>("C. imageType", viewerParam.imageType);
-	this->declare_parameter<int>("D. hdr_mode", static_cast<int>(nslConfig.hdrOpt));
-	this->declare_parameter<int>("E. int0", nslConfig.integrationTime3D);
-	this->declare_parameter<int>("F. int1", nslConfig.integrationTime3DHdr1);
-	this->declare_parameter<int>("G. int2", nslConfig.integrationTime3DHdr2);
-	this->declare_parameter<int>("H. intGr",nslConfig.integrationTimeGrayScale);
-	this->declare_parameter<int>("I. minAmplitude", nslConfig.minAmplitude);
-	this->declare_parameter<int>("J. modIndex", static_cast<int>(nslConfig.mod_frequencyOpt));
-	this->declare_parameter<int>("K. channel", static_cast<int>(nslConfig.mod_channelOpt));
-	this->declare_parameter<int>("L. roi_leftX", nslConfig.roiXMin);
-	this->declare_parameter<int>("M. roi_topY",  nslConfig.roiYMin);
-	this->declare_parameter<int>("N. roi_rightX", nslConfig.roiXMax);
+	this->declare_parameter<string>("B. lensType", lensIntMap.at(viewerParam.lensType));
+	this->declare_parameter<string>("C. imageType", modeIntMap.at(viewerParam.imageType));
+	this->declare_parameter<string>("D. hdr_mode", hdrIntMap.at(static_cast<int>(nslConfig.hdrOpt)));
+
+	auto int_0 = create_Slider("Defaut integration time", 0, 2000, 1);
+	this->declare_parameter<int>("E. int0", nslConfig.integrationTime3D, int_0);
+
+	auto int_1 = create_Slider("HDR integration time1", 0, 2000, 1);
+	this->declare_parameter<int>("F. int1", nslConfig.integrationTime3DHdr1, int_1);
+
+	auto int_2 = create_Slider("HDR integration time2", 0, 2000, 1);
+	this->declare_parameter<int>("G. int2", nslConfig.integrationTime3DHdr2, int_2);
+
+	auto int_Gr = create_Slider("Grayscale time", 0, 40000, 1);
+	this->declare_parameter<int>("H. intGr",nslConfig.integrationTimeGrayScale, int_Gr);
+
+	auto min_Amplitude = create_Slider("minimum Amplitude", 0, 1000, 1);
+	this->declare_parameter<int>("I. minAmplitude", nslConfig.minAmplitude, min_Amplitude);
+
+	this->declare_parameter<string>("J. modIndex", modulationIntMap.at(static_cast<int>(nslConfig.mod_frequencyOpt)));
+	
+	auto channelOpt = create_Slider("Channel", 0, 15, 1);
+	this->declare_parameter<int>("K. channel", static_cast<int>(nslConfig.mod_channelOpt), channelOpt);
+
+	auto roi_LeftX = create_Slider("roi LeftX", 0, 120, 8);
+	this->declare_parameter<int>("L. roi_leftX", nslConfig.roiXMin, roi_LeftX);
+ 
+	auto roi_TopY = create_Slider("roi TopY", 0, 116, 2);
+	this->declare_parameter<int>("M. roi_topY",  nslConfig.roiYMin, roi_TopY);
+
+	auto roi_RightX = create_Slider("roi rightX", 127, 319, 8);
+	this->declare_parameter<int>("N. roi_rightX", (nslConfig.roiXMax == 0) ? 319 : nslConfig.roiXMax, roi_RightX);
 //	this->declare_parameter<int>("O. roi_bottomY", nslConfig.roiYMax);
 
-	this->declare_parameter<double>("P. transformAngle", viewerParam.lidarAngle);
+	auto transform_Angle = create_Slider("Angle", -90.0, 90.0, 9.0);
+	this->declare_parameter<double>("P. transformAngle", viewerParam.lidarAngle, transform_Angle);
+
 	this->declare_parameter<string>("Q. frameID", viewerParam.frame_id);
+
 	this->declare_parameter<bool>("R. medianFilter", static_cast<int>(nslConfig.medianOpt));
 	this->declare_parameter<bool>("S. gaussianFilter", static_cast<int>(nslConfig.gaussOpt));
-	this->declare_parameter<double>("T. temporalFilterFactor", nslConfig.temporalFactorValue);
-	this->declare_parameter<int>("T. temporalFilterFactorThreshold", nslConfig.temporalThresholdValue);
-	this->declare_parameter<int>("U. edgeFilterThreshold", nslConfig.edgeThresholdValue);
-	this->declare_parameter<int>("V. interferenceDetectionLimit", nslConfig.interferenceDetectionLimitValue);
+
+	auto temporal_FactorValue = create_Slider("temporal FactorValue", 0.0, 1.0, 0.01);
+	this->declare_parameter<double>("T. temporalFilterFactor", nslConfig.temporalFactorValue/1000.0, temporal_FactorValue);
+
+	auto temporal_Threshold = create_Slider("temporal Threshold", 0, 1000, 1);
+	this->declare_parameter<int>("T. temporalFilterFactorThreshold", nslConfig.temporalThresholdValue, temporal_Threshold);
+
+	auto edge_Threshold = create_Slider("edge Threshold", 0, 5000, 1);
+	this->declare_parameter<int>("U. edgeFilterThreshold", nslConfig.edgeThresholdValue, edge_Threshold);
+
+	auto interference_DetectionLimit = create_Slider("interference DetectionLimit", 0, 10000, 1);
+	this->declare_parameter<int>("V. interferenceDetectionLimit", nslConfig.interferenceDetectionLimitValue,interference_DetectionLimit);
+
 	this->declare_parameter<bool>("V. useLastValue", static_cast<int>(nslConfig.interferenceDetectionLastValueOpt));
 
-
-	this->declare_parameter<int>("W. dualBeam", static_cast<int>(nslConfig.dbModOpt));
-	this->declare_parameter<int>("W. dualBeamOption", static_cast<int>(nslConfig.dbOpsOpt));
+	this->declare_parameter<string>("W. dualBeam", DBIntMap.at(static_cast<int>(nslConfig.dbModOpt)));
+	this->declare_parameter<string>("W. dualBeamOption", DBOptIntMap.at(static_cast<int>(nslConfig.dbOpsOpt)));
 	this->declare_parameter<bool>("X. grayscale LED", static_cast<int>(nslConfig.grayscaleIlluminationOpt));
-	this->declare_parameter<int>("Y. PointColud EDGE", viewerParam.pointCloudEdgeThreshold);
-	this->declare_parameter<int>("Z. MaxDistance", viewerParam.maxDistance);
+
+	auto pointCloud_EdgeThreshold = create_Slider("pointCloud EdgeThreshold", 0, 10000, 1);
+	this->declare_parameter<int>("Y. PointColud EDGE", viewerParam.pointCloudEdgeThreshold, pointCloud_EdgeThreshold);
+
+	auto max_Distance = create_Slider("max Distance", 0, 50000, 1);
+	this->declare_parameter<int>("Z. MaxDistance", viewerParam.maxDistance, max_Distance);
+
+
 
 	this->set_parameter(pFrameID);
 	this->set_parameter(pIPAddr);
