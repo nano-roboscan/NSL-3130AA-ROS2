@@ -798,6 +798,9 @@ void roboscanPublisher::startStreaming()
 	if( viewerParam.imageType == static_cast<int>(OPERATION_MODE_OPTIONS::DISTANCE_MODE)){
 		nsl_streamingOn(nsl_handle, OPERATION_MODE_OPTIONS::DISTANCE_MODE);
 	}
+	else if( viewerParam.imageType == static_cast<int>(OPERATION_MODE_OPTIONS::GRAYSCALE_MODE)){
+		nsl_streamingOn(nsl_handle, OPERATION_MODE_OPTIONS::GRAYSCALE_MODE);
+	}
 	else if( viewerParam.imageType == static_cast<int>(OPERATION_MODE_OPTIONS::DISTANCE_AMPLITUDE_MODE)){
 		nsl_streamingOn(nsl_handle, OPERATION_MODE_OPTIONS::DISTANCE_AMPLITUDE_MODE);
 	}

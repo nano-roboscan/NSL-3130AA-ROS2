@@ -208,19 +208,13 @@ namespace nanosys {
 	    // save yaml
 	    void save_params()
 	    {
-			int imgType = this->get_parameter("C. imageType").as_int();
-			if( imgType < 1 || imgType > 8 ) imgType = 3; // default DISTANCE_AMPLITUDE
-
-			int lensType = this->get_parameter("B. lensType").as_int();
-			if( lensType < 0 || lensType > 2 ) lensType = 1; // default LENS_SF
-			
 	        std::ofstream fout(yaml_path_);
 	        fout << "IP Addr: " << this->get_parameter("0. IP Addr").as_string() << "\n";
 	        fout << "FrameID: " << this->get_parameter("Q. frameID").as_string() << "\n";
 	        fout << "MaxDistance: " << this->get_parameter("Z. MaxDistance").as_int() << "\n";
 	        fout << "PointColud EDGE: " << this->get_parameter("Y. PointColud EDGE").as_int() << "\n";
-			fout << "ImageType: " << modeIntMap.at(imgType) << "\n";
-			fout << "LensType: " << lensIntMap.at(lensType) << "\n";
+			fout << "ImageType: " << this->get_parameter("C. imageType").as_string() << "\n";
+			fout << "LensType: " << this->get_parameter("B. lensType").as_string() << "\n";
 	        fout << "LidarAngle: " << this->get_parameter("P. transformAngle").as_double() << "\n";
 
 	        fout.close();

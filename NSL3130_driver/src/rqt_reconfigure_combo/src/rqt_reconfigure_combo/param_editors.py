@@ -160,8 +160,8 @@ class StringEditor(EditorWidget):
 
     # 파라미터 이름별 콤보박스 옵션 정의
     combo_params = {
-        "B. lensType": ["Lens_NF", "Lens_SF", "Lens_WF"],
-        "C. imageType": ["Dist", "Gray", "Dist/Ampl", "Dist/Gray", "RGB", "RGB/Dist", "RGB/Dist/Ampl", "RGB/Dist/Gray"],
+        "B. lensType": ["LENS_NF", "LENS_SF", "LENS_WF"],
+        "C. imageType": ["DISTANCE", "GRAYSCALE", "DISTANCE_AMPLITUDE", "DISTANCE_GRAYSCALE", "RGB", "RGB_DISTANCE", "RGB_DISTANCE_AMPLITUDE", "RGB_DISTANCE_GRAYSCALE"],
         "D. hdr_mode": ["HDR_None", "HDR_Spatial", "HDR_Temporal"],
         "J. modIndex": ["MOD_12Mhz", "MOD_24Mhz", "MOD_6Mhz", "MOD_3Mhz"],
         "W. dualBeam": ["DB_Off", "DB_6Mhz", "DB_3Mhz"],
