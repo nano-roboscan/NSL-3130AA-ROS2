@@ -35,7 +35,7 @@ def generate_launch_description():
 #        arguments=['-d' + os.path.join(get_package_share_directory('roboscan_nsl3130'), 'rviz', 'roboscan_nsl3130rviz.rviz')],output='screen')
 
     rqt_node = ExecuteProcess(
-        cmd=['ros2', 'run', 'rqt_gui', 'rqt_gui', '--force-discover'],
+        cmd=['ros2', 'run', 'rqt_gui', 'rqt_gui', '-s', 'rqt_reconfigure_combo'],
         output='screen')
 
 
