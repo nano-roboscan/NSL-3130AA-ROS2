@@ -121,9 +121,6 @@ void roboscanPublisher::initNslLibrary()
 		return;
 	}
 
-//	nsl_setColorRange(viewerParam.maxDistance, MAX_GRAYSCALE_VALUE, NslOption::FUNCTION_OPTIONS::FUNC_OFF);
-	nsl_setColorRange(viewerParam.maxDistance, MAX_GRAYSCALE_VALUE, NslOption::FUNCTION_OPTIONS::FUNC_ON);
-
 	nsl_setMinAmplitude(nsl_handle, nslConfig.minAmplitude);
 	nsl_setIntegrationTime(nsl_handle, nslConfig.integrationTime3D, nslConfig.integrationTime3DHdr1, nslConfig.integrationTime3DHdr2, nslConfig.integrationTimeGrayScale);
 	nsl_setHdrMode(nsl_handle, nslConfig.hdrOpt);
@@ -506,8 +503,6 @@ void roboscanPublisher::setReconfigure()
 			nslConfig.lidarAngle = viewerParam.lidarAngle;
 			nslConfig.lensType = static_cast<NslOption::LENS_TYPE>(viewerParam.lensType);
 			nsl_handle = nsl_open(viewerParam.ipAddr.c_str(), &nslConfig, FUNCTION_OPTIONS::FUNC_ON);
-			//nsl_setColorRange(viewerParam.maxDistance, MAX_GRAYSCALE_VALUE, NslOption::FUNCTION_OPTIONS::FUNC_OFF);
-			nsl_setColorRange(viewerParam.maxDistance, MAX_GRAYSCALE_VALUE, NslOption::FUNCTION_OPTIONS::FUNC_ON);
 			viewerParam.reOpenLidar = false;
 
 			if( nsl_handle >= 0 ){
@@ -799,12 +794,15 @@ void roboscanPublisher::startStreaming()
 		nsl_streamingOn(nsl_handle, OPERATION_MODE_OPTIONS::DISTANCE_MODE);
 	}
 	else if( viewerParam.imageType == static_cast<int>(OPERATION_MODE_OPTIONS::GRAYSCALE_MODE)){
+		nsl_setColorRange(viewerParam.maxDistance, MAX_GRAYSCALE_VALUE, NslOption::FUNCTION_OPTIONS::FUNC_ON);
 		nsl_streamingOn(nsl_handle, OPERATION_MODE_OPTIONS::GRAYSCALE_MODE);
 	}
 	else if( viewerParam.imageType == static_cast<int>(OPERATION_MODE_OPTIONS::DISTANCE_AMPLITUDE_MODE)){
+		nsl_setColorRange(viewerParam.maxDistance, MAX_GRAYSCALE_VALUE, NslOption::FUNCTION_OPTIONS::FUNC_OFF);
 		nsl_streamingOn(nsl_handle, OPERATION_MODE_OPTIONS::DISTANCE_AMPLITUDE_MODE);
 	}
 	else if( viewerParam.imageType == static_cast<int>(OPERATION_MODE_OPTIONS::DISTANCE_GRAYSCALE_MODE)){
+		nsl_setColorRange(viewerParam.maxDistance, MAX_GRAYSCALE_VALUE, NslOption::FUNCTION_OPTIONS::FUNC_ON);
 		nsl_streamingOn(nsl_handle, OPERATION_MODE_OPTIONS::DISTANCE_GRAYSCALE_MODE);
 	}
 	else if( viewerParam.imageType == static_cast<int>(OPERATION_MODE_OPTIONS::RGB_MODE)){
@@ -814,9 +812,11 @@ void roboscanPublisher::startStreaming()
 		nsl_streamingOn(nsl_handle, OPERATION_MODE_OPTIONS::RGB_DISTANCE_MODE);
 	}
 	else if( viewerParam.imageType == static_cast<int>(OPERATION_MODE_OPTIONS::RGB_DISTANCE_AMPLITUDE_MODE)){
+		nsl_setColorRange(viewerParam.maxDistance, MAX_GRAYSCALE_VALUE, NslOption::FUNCTION_OPTIONS::FUNC_OFF);
 		nsl_streamingOn(nsl_handle, OPERATION_MODE_OPTIONS::RGB_DISTANCE_AMPLITUDE_MODE);
 	}
 	else if( viewerParam.imageType == static_cast<int>(OPERATION_MODE_OPTIONS::RGB_DISTANCE_GRAYSCALE_MODE)){
+		nsl_setColorRange(viewerParam.maxDistance, MAX_GRAYSCALE_VALUE, NslOption::FUNCTION_OPTIONS::FUNC_ON);
 		nsl_streamingOn(nsl_handle, OPERATION_MODE_OPTIONS::RGB_DISTANCE_GRAYSCALE_MODE);
 	}
 	else{
@@ -956,7 +956,7 @@ void roboscanPublisher::publishFrame(NslPCD *frame)
 
 		int xMin = frame->roiXMin;
 		int yMin = frame->roiYMin;
-		
+
 		for (int y = 0; y < frame->height; ++y) {
 			for (int x = 0; x < frame->width; ++x) {
 				result.push_back(static_cast<uint8_t>(frame->amplitude[y+yMin][x+xMin] & 0xFF));		// LSB
@@ -995,7 +995,7 @@ void roboscanPublisher::publishFrame(NslPCD *frame)
 				result.push_back(static_cast<uint8_t>(frame->amplitude[y+yMin][x+xMin] & 0xFF));		// LSB
 				result.push_back(static_cast<uint8_t>((frame->amplitude[y+yMin][x+xMin] >> 8) & 0xFF)); // MSB
 
-				setMatrixColor(amplitudeMat, x+xMin, y+yMin, nsl_getDistanceColor(frame->amplitude[y+yMin][x+xMin]));
+				setMatrixColor(amplitudeMat, x+xMin, y+yMin, nsl_getAmplitudeColor(frame->amplitude[y+yMin][x+xMin]));
 			}
 		}
 
@@ -1092,6 +1092,9 @@ void roboscanPublisher::publishFrame(NslPCD *frame)
 			
 		if( frame->operationMode == OPERATION_MODE_OPTIONS::DISTANCE_MODE ){
 			distanceMat = addDistanceInfo(distanceMat, frame);
+		}
+		else if( frame->operationMode == OPERATION_MODE_OPTIONS::GRAYSCALE_MODE ){
+			distanceMat = addDistanceInfo(amplitudeMat, frame);
 		}
 		else if( frame->operationMode == OPERATION_MODE_OPTIONS::DISTANCE_AMPLITUDE_MODE ){
 			cv::hconcat(distanceMat, amplitudeMat, distanceMat);
