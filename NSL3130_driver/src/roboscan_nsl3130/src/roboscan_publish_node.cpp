@@ -115,6 +115,8 @@ roboscanPublisher::~roboscanPublisher()
 
 void roboscanPublisher::initNslLibrary()
 {
+	nslConfig.lidarAngle = viewerParam.lidarAngle;
+	nslConfig.lensType = static_cast<NslOption::LENS_TYPE>(viewerParam.lensType);
 	nsl_handle = nsl_open(viewerParam.ipAddr.c_str(), &nslConfig, FUNCTION_OPTIONS::FUNC_ON);
 	if( nsl_handle < 0 ){
 		std::cout << "nsl_open::handle open error::" << nsl_handle << std::endl;
@@ -627,9 +629,6 @@ void roboscanPublisher::initialise()
 	viewerParam.gwAddr = "192.168.0.1";
 
 	load_params();
-
-	nslConfig.lidarAngle = viewerParam.lidarAngle;
-	nslConfig.lensType = static_cast<NslOption::LENS_TYPE>(viewerParam.lensType);
 
 	initNslLibrary();
 	setWinName();
