@@ -51,6 +51,7 @@ using namespace std;
 
 std::atomic<int> x_start = -1, y_start = -1;
 std::unique_ptr<NslPCD> latestFrame = std::make_unique<NslPCD>();
+NslVec3b  rgbFrame[NSL_RGB_IMAGE_HEIGHT * NSL_RGB_IMAGE_WIDTH];
 
 
 static void callback_mouse_click(int event, int x, int y, int flags, void* user_data)
@@ -149,10 +150,24 @@ void roboscanPublisher::threadCallback()
 			setReconfigure();
 		}
 
-		if( nsl_getPointCloudData(nsl_handle, latestFrame.get(), 0) == NSL_ERROR_TYPE::NSL_SUCCESS )
+		
+		if( viewerParam.imageType ==  static_cast<int>(OPERATION_MODE_OPTIONS::RGB_MODE)
+			|| viewerParam.imageType == static_cast<int>(OPERATION_MODE_OPTIONS::RGB_DISTANCE_MODE)
+			|| viewerParam.imageType == static_cast<int>(OPERATION_MODE_OPTIONS::RGB_DISTANCE_AMPLITUDE_MODE)
+			|| viewerParam.imageType == static_cast<int>(OPERATION_MODE_OPTIONS::RGB_DISTANCE_GRAYSCALE_MODE) )
 		{
-			frameCount++;			
-			publishFrame(latestFrame.get());
+			if( nsl_getPointCloudRgbData(nsl_handle, latestFrame.get(), rgbFrame, 1000) == NSL_ERROR_TYPE::NSL_SUCCESS )
+			{
+				frameCount++;			
+				publishFrame(latestFrame.get(), rgbFrame);
+			}
+		}
+		else{
+			if( nsl_getPointCloudData(nsl_handle, latestFrame.get(), 0) == NSL_ERROR_TYPE::NSL_SUCCESS )
+			{
+				frameCount++;			
+				publishFrame(latestFrame.get(), NULL);
+			}
 		}
 
 		std::this_thread::sleep_for(std::chrono::milliseconds(10));
@@ -896,7 +911,7 @@ void roboscanPublisher::setMatrixColor(Mat image, int x, int y, NslVec3b color)
 	image.at<Vec3b>(y,x)[2] = color.r;
 }
 
-void roboscanPublisher::publishFrame(NslPCD *frame)
+void roboscanPublisher::publishFrame(NslPCD *frame, NslVec3b *rgbframe)
 {
 	static rclcpp::Clock s_rclcpp_clock;
 	auto data_stamp = s_rclcpp_clock.now();
@@ -1016,26 +1031,27 @@ void roboscanPublisher::publishFrame(NslPCD *frame)
 		|| frame->operationMode == OPERATION_MODE_OPTIONS::RGB_DISTANCE_AMPLITUDE_MODE
 		|| frame->operationMode == OPERATION_MODE_OPTIONS::RGB_DISTANCE_GRAYSCALE_MODE)
 	{
-	
-		int totalPixels = NSL_RGB_IMAGE_HEIGHT * NSL_RGB_IMAGE_WIDTH;
-		cv::Vec3b* dstPtr = rgbMat.ptr<cv::Vec3b>();
-		NslOption::NslVec3b* srcPtr = &frame->rgb[0][0];
-		
-		for (int i = 0; i < totalPixels; ++i) {
-			dstPtr[i] = cv::Vec3b(
-				srcPtr[i].b,  // blue
-				srcPtr[i].g,  // green
-				srcPtr[i].r   // red
-			);
-		}
+		if( rgbframe != NULL ){
+			int totalPixels = NSL_RGB_IMAGE_HEIGHT * NSL_RGB_IMAGE_WIDTH;
+			cv::Vec3b* dstPtr = rgbMat.ptr<cv::Vec3b>();
+			NslOption::NslVec3b* srcPtr = &rgbframe[0];
+			
+			for (int i = 0; i < totalPixels; ++i) {
+				dstPtr[i] = cv::Vec3b(
+					srcPtr[i].b,  // blue
+					srcPtr[i].g,  // green
+					srcPtr[i].r   // red
+				);
+			}
 
-		cv_bridge::CvImagePtr cv_ptr(new cv_bridge::CvImage);
-		cv_ptr->header.stamp = data_stamp;
-		cv_ptr->header.frame_id = viewerParam.frame_id;
-		cv_ptr->image = rgbMat;
-		cv_ptr->encoding = "bgr8";
-	
-		imagePublisher.publish(cv_ptr->toImageMsg());		
+			cv_bridge::CvImagePtr cv_ptr(new cv_bridge::CvImage);
+			cv_ptr->header.stamp = data_stamp;
+			cv_ptr->header.frame_id = viewerParam.frame_id;
+			cv_ptr->image = rgbMat;
+			cv_ptr->encoding = "bgr8";
+		
+			imagePublisher.publish(cv_ptr->toImageMsg());
+		}
 	}
 #endif
 

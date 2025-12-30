@@ -66,7 +66,7 @@ namespace nanosys {
 		void initialise();
 		void threadCallback();
 		void setReconfigure();
-		void publishFrame(NslPCD *frame);
+		void publishFrame(NslPCD *frame, NslOption::NslVec3b *rgbframe);
 		void startStreaming();
 
 		//static rclcpp::Time timeNow;
