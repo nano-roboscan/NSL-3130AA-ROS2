@@ -20,6 +20,14 @@ $ . install/setup.bash
 $ ros2 launch roboscan_nsl3130 camera.Launch.py
 ```
 
+# Phase wrapping Avoidance and Correction
+<img width="1597" height="464" alt="Image" src="https://github.com/user-attachments/assets/c715cf77-1e8a-4921-a657-dbc7799741fc" />
+
+# Average FPS per Image type
+```
+max 20 fps
+```
+
 # Set parameters
 ```
 $ rqt
