@@ -156,7 +156,7 @@ void roboscanPublisher::threadCallback()
 			|| viewerParam.imageType == static_cast<int>(OPERATION_MODE_OPTIONS::RGB_DISTANCE_AMPLITUDE_MODE)
 			|| viewerParam.imageType == static_cast<int>(OPERATION_MODE_OPTIONS::RGB_DISTANCE_GRAYSCALE_MODE) )
 		{
-			if( nsl_getPointCloudRgbData(nsl_handle, latestFrame.get(), rgbFrame, 1000) == NSL_ERROR_TYPE::NSL_SUCCESS )
+			if( nsl_getPointCloudRgbData(nsl_handle, latestFrame.get(), rgbFrame, 0) == NSL_ERROR_TYPE::NSL_SUCCESS )
 			{
 				frameCount++;			
 				publishFrame(latestFrame.get(), rgbFrame);
