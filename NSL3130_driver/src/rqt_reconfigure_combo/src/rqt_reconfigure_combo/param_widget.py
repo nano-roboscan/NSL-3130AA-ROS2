@@ -36,7 +36,7 @@ from __future__ import division
 
 import sys
 
-from python_qt_binding.QtCore import QMargins, Signal
+from python_qt_binding.QtCore import QMargins, QTimer, Signal
 from python_qt_binding.QtWidgets import (
     QHBoxLayout, QLabel, QSplitter, QVBoxLayout, QWidget
 )
@@ -148,8 +148,10 @@ class ParamWidget(QWidget):
         instance_settings.set_value('splitter', self._splitter.saveState())
         self.filter_lineedit.save_settings(instance_settings)
         self._nodesel_widget.save_settings(instance_settings)
-        instance_settings.set_value(
-            'selected_nodes', list(self._param_edit_widget.get_active_grns()))
+        # Exclude transient rqt-internal nodes (PID-stamped names like /rqt_gui_py_node_12345)
+        active = [n for n in self._param_edit_widget.get_active_grns()
+                  if 'rqt_gui_py_node' not in n]
+        instance_settings.set_value('selected_nodes', active)
 
     def restore_settings(self, plugin_settings, instance_settings):
         if instance_settings.contains('splitter'):
@@ -159,18 +161,32 @@ class ParamWidget(QWidget):
         self.filter_lineedit.restore_settings(instance_settings)
         self._nodesel_widget.restore_settings(instance_settings)
 
-        # Ignore previously open nodes if we were given an explicit list
         if self._explicit_nodes_to_select:
             nodes_to_select = self._explicit_nodes_to_select
             explicit = True
         else:
             nodes_to_select = instance_settings.value('selected_nodes') or []
+            if isinstance(nodes_to_select, str):
+                nodes_to_select = [n.strip() for n in nodes_to_select.split(',') if n.strip()]
             explicit = False
 
+        self._restore_nodes(list(nodes_to_select), explicit, retries_left=15)
+
+    def _restore_nodes(self, nodes_to_select, explicit, retries_left=15):
+        pending = []
         for rn in nodes_to_select:
             if rn in self._nodesel_widget.get_nodeitems():
                 self.sig_selected.emit(rn, explicit)
-            elif explicit:
+            else:
+                pending.append(rn)
+
+        if pending and retries_left > 0:
+            QTimer.singleShot(
+                2000,
+                lambda: self._restore_nodes(pending, explicit, retries_left - 1)
+            )
+        elif pending and explicit:
+            for rn in pending:
                 logging.warn(
                     'Could not find a dynamic reconfigure client'
                     " named '{}'".format(str(rn))

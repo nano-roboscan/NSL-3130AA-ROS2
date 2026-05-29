@@ -21,6 +21,8 @@ find_package(rclcpp REQUIRED)
 find_package(rclcpp_action REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(tf2 REQUIRED)
+find_package(tf2_ros REQUIRED)
+find_package(geometry_msgs REQUIRED)
 find_package(PCL REQUIRED)
 find_package(yaml-cpp REQUIRED)
 
@@ -66,6 +68,15 @@ ${NSL_LIB_INCLUDE_DIR})
 
 # Build
 add_executable(roboscan_publish_node src/roboscan_publish_node.cpp)
+
+add_executable(change_camera_ip nsl_lib/script/change_camera_ip.cpp)
+target_compile_features(change_camera_ip PUBLIC cxx_std_17)
+target_include_directories(change_camera_ip PUBLIC ${NSL_LIB_INCLUDE_DIR})
+target_link_libraries(change_camera_ip ${NSL_LIB_PATH})
+set_target_properties(change_camera_ip PROPERTIES
+  BUILD_RPATH  "${NSL_LIB_DIR}"
+  INSTALL_RPATH "${NSL_LIB_DIR}"
+)
                                 
 target_include_directories(roboscan_publish_node PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -83,6 +94,9 @@ ament_target_dependencies(roboscan_publish_node
   Eigen3
   OpenCV
   image_transport
+  tf2
+  tf2_ros
+  geometry_msgs
 )
 
 target_link_libraries(roboscan_publish_node 
@@ -100,15 +114,27 @@ set_target_properties(roboscan_publish_node PROPERTIES
   INSTALL_RPATH "${NSL_LIB_DIR}"
 )
 
-install(TARGETS roboscan_publish_node
+install(TARGETS roboscan_publish_node change_camera_ip
   DESTINATION lib/${PROJECT_NAME})
 
 install(DIRECTORY launch
   DESTINATION share/${PROJECT_NAME}
 )
 
+install(FILES lidar_params.yaml
+  DESTINATION share/${PROJECT_NAME}
+)
+
 install(DIRECTORY rviz
   DESTINATION share/${PROJECT_NAME}
+)
+
+install(PROGRAMS
+  scripts/detect_camera_id.py
+  scripts/intrinsic_calibration_node.py
+  scripts/extrinsic_calibration_node.py
+  scripts/verify_intrinsic.py
+  DESTINATION lib/${PROJECT_NAME}
 )
 
 if(BUILD_TESTING)

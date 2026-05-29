@@ -2,6 +2,7 @@
 #include <chrono>
 #include <functional>
 #include <filesystem>
+#include <fstream>
 #include <memory>
 #include <string>
 #include "rclcpp/rclcpp.hpp"
@@ -13,6 +14,7 @@
 #include <opencv2/core/core.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/core/types.hpp>
+#include <opencv2/calib3d.hpp>
 #include <cv_bridge/cv_bridge.h>
 //#include <pcl/conversions.h>
 //#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
@@ -84,10 +86,11 @@ roboscanPublisher::roboscanPublisher() :
     RCLCPP_INFO(this->get_logger(), "start roboscanPublisher...\n");
     auto qos_profile = rclcpp::QoS(rclcpp::KeepLast(10));
 
-    imgDistancePub = this->create_publisher<sensor_msgs::msg::Image>("roboscanDistance", qos_profile); 
-    imgAmplPub = this->create_publisher<sensor_msgs::msg::Image>("roboscanAmpl", qos_profile); 
-    imgGrayPub = this->create_publisher<sensor_msgs::msg::Image>("roboscanGray", qos_profile); 
-    pointcloudPub = this->create_publisher<sensor_msgs::msg::PointCloud2>("roboscanPointCloud", qos_profile); 
+    imgDistancePub = this->create_publisher<sensor_msgs::msg::Image>("roboscanDistance", qos_profile);
+    imgAmplPub = this->create_publisher<sensor_msgs::msg::Image>("roboscanAmpl", qos_profile);
+    imgGrayPub = this->create_publisher<sensor_msgs::msg::Image>("roboscanGray", qos_profile);
+    pointcloudPub = this->create_publisher<sensor_msgs::msg::PointCloud2>("roboscanPointCloud", qos_profile);
+    pointcloudRgbPub = this->create_publisher<sensor_msgs::msg::PointCloud2>("roboscanPointCloudRgb", qos_profile);
 
 //	yaml_path_ = std::string(std::getenv("HOME")) + "/lidar_params.yaml";
 	yaml_path_ = ament_index_cpp::get_package_share_directory("roboscan_nsl3130") + "/lidar_params.yaml";
@@ -118,11 +121,35 @@ void roboscanPublisher::initNslLibrary()
 {
 	nslConfig.lidarAngle = viewerParam.lidarAngle;
 	nslConfig.lensType = static_cast<NslOption::LENS_TYPE>(viewerParam.lensType);
-	nsl_handle = nsl_open(viewerParam.ipAddr.c_str(), &nslConfig, FUNCTION_OPTIONS::FUNC_ON);
-	if( nsl_handle < 0 ){
-		std::cout << "nsl_open::handle open error::" << nsl_handle << std::endl;
-		return;
+
+	nsl_handle = nsl_open(viewerParam.usbPath.c_str(), &nslConfig, FUNCTION_OPTIONS::FUNC_ON);
+	if (nsl_handle >= 0) {
+		RCLCPP_INFO(this->get_logger(), "USB(Vendor) connected. Updating camera IP: %s mask: %s gw: %s",
+			viewerParam.ipAddr.c_str(), viewerParam.netMask.c_str(), viewerParam.gwAddr.c_str());
+		nsl_setIpAddress(nsl_handle, viewerParam.ipAddr.c_str(), viewerParam.netMask.c_str(), viewerParam.gwAddr.c_str());
+		nsl_saveConfiguration(nsl_handle);
+		RCLCPP_INFO(this->get_logger(), "Streaming via USB.");
+
+		// Auto-detect camera serial from sysfs (VID 1fc9 = NanoSystems)
+		if (viewerParam.camera_id.empty() || viewerParam.camera_id == "nsl") {
+			std::string ser = detectUsbSerial();
+			if (!ser.empty()) {
+				viewerParam.camera_id = ser;
+				RCLCPP_INFO(this->get_logger(), "Camera ID auto-detected: %s", ser.c_str());
+			}
+		}
+	} else {
+		RCLCPP_INFO(this->get_logger(), "USB unavailable (code: %d), connecting via Ethernet %s ...",
+			nsl_handle, viewerParam.ipAddr.c_str());
+		nsl_handle = nsl_open(viewerParam.ipAddr.c_str(), &nslConfig, FUNCTION_OPTIONS::FUNC_ON);
+		if( nsl_handle < 0 ){
+			std::cout << "nsl_open::handle open error::" << nsl_handle << std::endl;
+			return;
+		}
+		RCLCPP_INFO(this->get_logger(), "Streaming via Ethernet.");
 	}
+
+	load_sensor_tuning_params();
 
 	nsl_setMinAmplitude(nsl_handle, nslConfig.minAmplitude);
 	nsl_setIntegrationTime(nsl_handle, nslConfig.integrationTime3D, nslConfig.integrationTime3DHdr1, nslConfig.integrationTime3DHdr2, nslConfig.integrationTimeGrayScale);
@@ -158,14 +185,14 @@ void roboscanPublisher::threadCallback()
 		{
 			if( nsl_getPointCloudRgbData(nsl_handle, latestFrame.get(), rgbFrame, 0) == NSL_ERROR_TYPE::NSL_SUCCESS )
 			{
-				frameCount++;			
+				frameCount++;
 				publishFrame(latestFrame.get(), rgbFrame);
 			}
 		}
 		else{
-			if( nsl_getPointCloudData(nsl_handle, latestFrame.get(), 0) == NSL_ERROR_TYPE::NSL_SUCCESS )
+		if( nsl_getPointCloudData(nsl_handle, latestFrame.get(), 0) == NSL_ERROR_TYPE::NSL_SUCCESS )
 			{
-				frameCount++;			
+				frameCount++;
 				publishFrame(latestFrame.get(), NULL);
 			}
 		}
@@ -193,6 +220,10 @@ rcl_interfaces::msg::SetParametersResult roboscanPublisher::parametersCallback( 
 	rcl_interfaces::msg::SetParametersResult result;
 	result.successful = true;
 	result.reason = "success";
+
+	if (!parameters_ready_) {
+		return result;
+	}
 	
 	// Here update class attributes, do some actions, etc.
 	for (const auto &param: parameters)
@@ -238,26 +269,32 @@ rcl_interfaces::msg::SetParametersResult roboscanPublisher::parametersCallback( 
 			int hdr_opt = (itHdr != hdrStrMap.end()) ? itHdr->second : 0; // Hdr OFF
 
 			nslConfig.hdrOpt = static_cast<NslOption::HDR_OPTIONS>(hdr_opt);
+			viewerParam.saveParam = true;
 		}
 		else if (param.get_name() == "E. int0")
 		{
 			nslConfig.integrationTime3D = param.as_int();
+			viewerParam.saveParam = true;
 		}
 		else if (param.get_name() == "F. int1")
 		{
 			nslConfig.integrationTime3DHdr1 = param.as_int();
+			viewerParam.saveParam = true;
 		}
 		else if (param.get_name() == "G. int2")
 		{
 			nslConfig.integrationTime3DHdr2 = param.as_int();
+			viewerParam.saveParam = true;
 		}
 		else if (param.get_name() == "H. intGr")
 		{
 			nslConfig.integrationTimeGrayScale = param.as_int();
+			viewerParam.saveParam = true;
 		}
 		else if (param.get_name() == "I. minAmplitude")
 		{
 			nslConfig.minAmplitude = param.as_int();
+			viewerParam.saveParam = true;
 		}
 		else if (param.get_name() == "J. modIndex")
 		{
@@ -266,12 +303,14 @@ rcl_interfaces::msg::SetParametersResult roboscanPublisher::parametersCallback( 
 			int freq_opt = (itFreq != modulationStrMap.end()) ? itFreq->second : 0; // 12Mhz
 
 			nslConfig.mod_frequencyOpt = static_cast<NslOption::MODULATION_OPTIONS>(freq_opt);
+			viewerParam.saveParam = true;
 		}
 		else if (param.get_name() == "K. channel")
 		{
 			int ch_opt = param.as_int();
 			if( ch_opt > 15 || ch_opt < 0 ) ch_opt = 0;
 			nslConfig.mod_channelOpt = static_cast<NslOption::MODULATION_CH_OPTIONS>(ch_opt);
+			viewerParam.saveParam = true;
 		}
 		else if (param.get_name() == "L. roi_leftX")
 		{
@@ -339,26 +378,31 @@ rcl_interfaces::msg::SetParametersResult roboscanPublisher::parametersCallback( 
 		else if (param.get_name() == "R. medianFilter")
 		{
 			nslConfig.medianOpt = static_cast<NslOption::FUNCTION_OPTIONS>(param.as_bool());
+			viewerParam.saveParam = true;
 		}
-		else if (param.get_name() == "S. averageFilter")
+		else if (param.get_name() == "S. gaussianFilter")
 		{
 			nslConfig.gaussOpt = static_cast<NslOption::FUNCTION_OPTIONS>(param.as_bool());
+			viewerParam.saveParam = true;
 		}
 		else if (param.get_name() == "T. temporalFilterFactor")
 		{
 			nslConfig.temporalFactorValue = static_cast<int>(param.as_double()*1000);
 			if( nslConfig.temporalFactorValue > 1000 ) nslConfig.temporalFactorValue = 1000;
 			if( nslConfig.temporalFactorValue < 0 ) nslConfig.temporalFactorValue = 0;
+			viewerParam.saveParam = true;
 		}
 		else if (param.get_name() == "T. temporalFilterFactorThreshold")
 		{
 			nslConfig.temporalThresholdValue = param.as_int();
 			if( nslConfig.temporalThresholdValue < 0 ) nslConfig.temporalThresholdValue = 0;
+			viewerParam.saveParam = true;
 		}
 		else if (param.get_name() == "U. edgeFilterThreshold")
 		{
 			nslConfig.edgeThresholdValue = param.as_int();
 			if( nslConfig.edgeThresholdValue < 0 ) nslConfig.edgeThresholdValue = 0;
+			viewerParam.saveParam = true;
 		}
 		/*
 		else if (param.get_name() == "W. temporalEdgeThresholdLow")
@@ -375,10 +419,12 @@ rcl_interfaces::msg::SetParametersResult roboscanPublisher::parametersCallback( 
 			nslConfig.interferenceDetectionLimitValue = param.as_int();
 			if( nslConfig.interferenceDetectionLimitValue > 1000 ) nslConfig.interferenceDetectionLimitValue = 1000;
 			if( nslConfig.interferenceDetectionLimitValue < 0 ) nslConfig.interferenceDetectionLimitValue = 0;
+			viewerParam.saveParam = true;
 		}
 		else if (param.get_name() == "V. useLastValue")
 		{
 			nslConfig.interferenceDetectionLastValueOpt = static_cast<NslOption::FUNCTION_OPTIONS>(param.as_bool());
+			viewerParam.saveParam = true;
 		}
 		else if (param.get_name() == "W. dualBeam")
 		{
@@ -387,6 +433,7 @@ rcl_interfaces::msg::SetParametersResult roboscanPublisher::parametersCallback( 
 			int dualBeam = (itDb != DBStrMap.end()) ? itDb->second : 0; // DB OFF
 
 			nslConfig.dbModOpt = static_cast<NslOption::DUALBEAM_MOD_OPTIONS>(dualBeam);
+			viewerParam.saveParam = true;
 		}
 		else if (param.get_name() == "W. dualBeamOption")
 		{
@@ -394,10 +441,12 @@ rcl_interfaces::msg::SetParametersResult roboscanPublisher::parametersCallback( 
 			auto itDbOpt = DBOptStrMap.find(strDBOptType);
 			int dualBeamOpt = (itDbOpt != DBOptStrMap.end()) ? itDbOpt->second : 0; // DB_AVOIDANCE
 			nslConfig.dbOpsOpt = static_cast<NslOption::DUALBEAM_OPERATION_OPTIONS>(dualBeamOpt);
+			viewerParam.saveParam = true;
 		}
 		else if (param.get_name() == "X. grayscale LED")
 		{
 			nslConfig.grayscaleIlluminationOpt = static_cast<NslOption::FUNCTION_OPTIONS>(param.as_bool());
+			viewerParam.saveParam = true;
 		}
 		else if (param.get_name() == "Y. PointColud EDGE")
 		{
@@ -463,6 +512,235 @@ void roboscanPublisher::timeDelay(int milli)
 
 		std::this_thread::sleep_for(std::chrono::milliseconds(10));
 	}
+}
+
+std::string roboscanPublisher::detectUsbSerial()
+{
+    // Read USB serial from sysfs for VID 1fc9 (NanoSystems)
+    // Works for Vendor mode (PID 0099) and original mode (PID 0094)
+    const std::string USB_SYS = "/sys/bus/usb/devices/";
+    try {
+        for (const auto& entry : std::filesystem::directory_iterator(USB_SYS)) {
+            auto vid_f = entry.path() / "idVendor";
+            auto pid_f = entry.path() / "idProduct";
+            auto ser_f = entry.path() / "serial";
+            if (!std::filesystem::exists(vid_f) || !std::filesystem::exists(ser_f)) continue;
+
+            std::string vid, pid, serial;
+            { std::ifstream f(vid_f); f >> vid; }
+            { std::ifstream f(pid_f); f >> pid; }
+            { std::ifstream f(ser_f); f >> serial; }
+
+            if (vid == "1fc9" && (pid == "0099" || pid == "0094") && !serial.empty())
+                return serial;
+        }
+    } catch (...) {}
+    return "";
+}
+
+void roboscanPublisher::publishWorldTf()
+{
+    geometry_msgs::msg::TransformStamped ts;
+    ts.header.stamp    = this->get_clock()->now();
+    ts.header.frame_id = "reference_lidar_frame";
+    ts.child_frame_id  = viewerParam.frame_id;
+
+    if (viewerParam.is_reference) {
+        // Reference camera: identity transform (this camera IS the origin)
+        ts.transform.rotation.w = 1.0;
+        tf_static_broadcaster_->sendTransform(ts);
+        RCLCPP_INFO(get_logger(),
+            "[TF] is_reference=true: reference_lidar_frame → %s (identity)",
+            viewerParam.frame_id.c_str());
+    } else {
+        // Non-reference camera: load R|t from {camera_id}_to_reference.yml
+        const char* env = std::getenv("NSL_CALIB_DIR");
+        const std::string dir = env
+            ? std::string(env) + "/"
+            : std::filesystem::current_path().string() + "/calib_output/";
+        const std::string yml = dir + viewerParam.camera_id + "_to_reference.yml";
+
+        cv::FileStorage fs(yml, cv::FileStorage::READ);
+        if (!fs.isOpened()) {
+            RCLCPP_WARN(get_logger(),
+                "[Need R|t] %s not found — TF for '%s' not published.\n"
+                "  Create calib_output/%s_to_reference.yml with R|t to register this camera.",
+                yml.c_str(), viewerParam.camera_id.c_str(), viewerParam.camera_id.c_str());
+            return;
+        }
+
+        cv::Mat R, t;
+        fs["R"] >> R;
+        fs["t"] >> t;
+        fs.release();
+        R.convertTo(R, CV_64F);
+        t.convertTo(t, CV_64F);
+
+        tf2::Matrix3x3 mat(
+            R.at<double>(0,0), R.at<double>(0,1), R.at<double>(0,2),
+            R.at<double>(1,0), R.at<double>(1,1), R.at<double>(1,2),
+            R.at<double>(2,0), R.at<double>(2,1), R.at<double>(2,2));
+        tf2::Quaternion q;
+        mat.getRotation(q);
+
+        ts.transform.rotation.x = q.x();
+        ts.transform.rotation.y = q.y();
+        ts.transform.rotation.z = q.z();
+        ts.transform.rotation.w = q.w();
+        ts.transform.translation.x = t.at<double>(0);
+        ts.transform.translation.y = t.at<double>(1);
+        ts.transform.translation.z = t.at<double>(2);
+        tf_static_broadcaster_->sendTransform(ts);
+        RCLCPP_INFO(get_logger(),
+            "[TF] reference_lidar_frame → %s (from %s)",
+            viewerParam.frame_id.c_str(), yml.c_str());
+    }
+}
+
+void roboscanPublisher::tryLoadCalibParams()
+{
+    // Use NSL_CALIB_DIR env var if set, otherwise calib_output/ relative to CWD (repo root)
+    const char* env_calib = std::getenv("NSL_CALIB_DIR");
+    const std::string dir = env_calib
+        ? std::string(env_calib) + "/"
+        : std::filesystem::current_path().string() + "/calib_output/";
+    const std::string intr = dir + viewerParam.camera_id + "_intrinsic.yml";
+    const std::string extr = dir + viewerParam.camera_id + "_extrinsic.yml";
+
+    if (!std::filesystem::exists(intr) || !std::filesystem::exists(extr)) {
+        calib_.loaded = false;
+        RCLCPP_INFO(get_logger(), "No calib files for '%s' → SDK homography",
+            viewerParam.camera_id.c_str());
+        return;
+    }
+    try {
+        cv::FileStorage fi(intr, cv::FileStorage::READ);
+        if (!fi.isOpened()) throw std::runtime_error("cannot open " + intr);
+        fi["camera_matrix"]           >> calib_.K;
+        fi["distortion_coefficients"] >> calib_.D;
+        std::string dm;
+        fi["distortion_model"] >> dm;
+        calib_.fisheye = (dm == "equidistant" || dm == "fisheye");
+        fi.release();
+
+        cv::FileStorage fe(extr, cv::FileStorage::READ);
+        if (!fe.isOpened()) throw std::runtime_error("cannot open " + extr);
+        fe["R"] >> calib_.R;
+        fe["t"] >> calib_.tvec;
+        fe.release();
+
+        if (calib_.K.empty() || calib_.R.empty() || calib_.tvec.empty())
+            throw std::runtime_error("empty matrix in calib file");
+
+        calib_.K.convertTo(calib_.K, CV_64F);
+        calib_.D.convertTo(calib_.D, CV_64F);
+        calib_.R.convertTo(calib_.R, CV_64F);
+        calib_.tvec.convertTo(calib_.tvec, CV_64F);
+
+        // fisheye::projectPoints requires exactly 4 distortion coefficients
+        if (calib_.fisheye && calib_.D.cols > 4) {
+            calib_.D = calib_.D.colRange(0, 4);
+        }
+
+        calib_.loaded = true;
+        RCLCPP_INFO(get_logger(), "Calibration loaded for '%s' (fisheye=%s, D_cols=%d)",
+            viewerParam.camera_id.c_str(), calib_.fisheye ? "yes" : "no", calib_.D.cols);
+    } catch (const std::exception& e) {
+        calib_.loaded = false;
+        RCLCPP_WARN(get_logger(), "Calib load failed: %s → SDK homography", e.what());
+    }
+}
+
+void roboscanPublisher::publishCalibratedRgbCloud(
+    NslPCD* frame, NslOption::NslVec3b* rgbframe, const rclcpp::Time& stamp)
+{
+    auto t0 = std::chrono::steady_clock::now();
+
+    // Zero-copy: NslVec3b {b,g,r} ≡ CV_8UC3 BGR
+    cv::Mat rgb_img(NSL_RGB_IMAGE_HEIGHT, NSL_RGB_IMAGE_WIDTH, CV_8UC3, rgbframe);
+
+    const int xMin = frame->roiXMin;
+    const int yMin = frame->roiYMin;
+    const double* Rd = calib_.R.ptr<double>();
+    const double* td = calib_.tvec.ptr<double>();
+
+    std::vector<cv::Point3d> cam_pts;
+    std::vector<int>         pix_idx;
+    cam_pts.reserve(static_cast<size_t>(frame->width * frame->height));
+    pix_idx.reserve(static_cast<size_t>(frame->width * frame->height));
+
+    for (int y = 0; y < frame->height; ++y) {
+        for (int x = 0; x < frame->width; ++x) {
+            double zv = frame->distance3D[OUT_Z][y + yMin][x + xMin];
+            if (zv >= NSL_LIMIT_FOR_VALID_DATA) continue;
+
+            double lx =  zv / 1000.0;
+            double ly = -frame->distance3D[OUT_X][y + yMin][x + xMin] / 1000.0;
+            double lz = -frame->distance3D[OUT_Y][y + yMin][x + xMin] / 1000.0;
+
+            double cx = Rd[0]*lx + Rd[1]*ly + Rd[2]*lz + td[0];
+            double cy = Rd[3]*lx + Rd[4]*ly + Rd[5]*lz + td[1];
+            double cz = Rd[6]*lx + Rd[7]*ly + Rd[8]*lz + td[2];
+            if (cz <= 0.05) continue;
+
+            cam_pts.emplace_back(cx, cy, cz);
+            pix_idx.push_back(y * frame->width + x);
+        }
+    }
+
+    if (cam_pts.empty()) return;
+
+    std::vector<cv::Point2d> img_pts;
+    cv::Mat zeros3 = cv::Mat::zeros(3, 1, CV_64F);
+    if (calib_.fisheye) {
+        // fisheye::projectPoints needs Nx1x3 Mat
+        cv::Mat pts3d(static_cast<int>(cam_pts.size()), 1, CV_64FC3,
+                      reinterpret_cast<void*>(cam_pts.data()));
+        cv::fisheye::projectPoints(pts3d, img_pts, zeros3, zeros3, calib_.K, calib_.D);
+    } else {
+        cv::projectPoints(cam_pts, zeros3, zeros3, calib_.K, calib_.D, img_pts);
+    }
+
+    pcl::PointCloud<pcl::PointXYZRGB> cloudRgb;
+    cloudRgb.points.reserve(img_pts.size());
+    cloudRgb.header.frame_id = viewerParam.frame_id;
+    cloudRgb.header.stamp    = pcl_conversions::toPCL(stamp);
+
+    for (size_t i = 0; i < img_pts.size(); ++i) {
+        int u = static_cast<int>(std::round(img_pts[i].x));
+        int v = static_cast<int>(std::round(img_pts[i].y));
+        if (u < 0 || u >= NSL_RGB_IMAGE_WIDTH || v < 0 || v >= NSL_RGB_IMAGE_HEIGHT) continue;
+
+        int fi = pix_idx[i];
+        int py = fi / frame->width;
+        int px = fi % frame->width;
+
+        pcl::PointXYZRGB pt;
+        pt.x = static_cast<float>(frame->distance3D[OUT_Z][py+yMin][px+xMin] / 1000.0);
+        pt.y = static_cast<float>(-frame->distance3D[OUT_X][py+yMin][px+xMin] / 1000.0);
+        pt.z = static_cast<float>(-frame->distance3D[OUT_Y][py+yMin][px+xMin] / 1000.0);
+        const cv::Vec3b& bgr = rgb_img.at<cv::Vec3b>(v, u);
+        pt.b = bgr[0]; pt.g = bgr[1]; pt.r = bgr[2];
+        cloudRgb.points.push_back(pt);
+    }
+
+    auto t1 = std::chrono::steady_clock::now();
+    double ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+    if (ms > 10.0) {
+        RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 5000,
+            "RGB projection %.1f ms > 10 ms — skipping publish", ms);
+        return;
+    }
+
+    cloudRgb.width    = static_cast<uint32_t>(cloudRgb.points.size());
+    cloudRgb.height   = 1;
+    cloudRgb.is_dense = false;
+
+    sensor_msgs::msg::PointCloud2 msgRgb;
+    pcl::toROSMsg(cloudRgb, msgRgb);
+    msgRgb.header.stamp    = stamp;
+    msgRgb.header.frame_id = viewerParam.frame_id;
+    pointcloudRgbPub->publish(msgRgb);
 }
 
 void roboscanPublisher::renewParameter()
@@ -638,14 +916,24 @@ void roboscanPublisher::initialise()
 	viewerParam.lensType = 1;
 	viewerParam.lidarAngle = 0;
 
-	viewerParam.frame_id = "roboscan_frame";
-	viewerParam.ipAddr = "192.168.0.220";
-	viewerParam.netMask = "255.255.255.0";
-	viewerParam.gwAddr = "192.168.0.1";
+	viewerParam.frame_id = "lidar_frame";
+	viewerParam.ipAddr   = "192.168.2.220";
+	viewerParam.netMask  = "255.255.255.0";
+	viewerParam.gwAddr   = "192.168.2.1";
+	viewerParam.usbPath  = "";
 
 	load_params();
+	initNslLibrary();    // sets camera_id via USB serial auto-detect
 
-	initNslLibrary();
+	// frame_id always derived from USB serial to avoid TF conflicts in multi-camera setups
+	viewerParam.frame_id = viewerParam.camera_id.empty()
+	    ? "lidar_frame"
+	    : viewerParam.camera_id + "_lidar_frame";
+
+	tf_static_broadcaster_ = std::make_shared<tf2_ros::StaticTransformBroadcaster>(this);
+	publishWorldTf();
+
+	tryLoadCalibParams();
 	setWinName();
 
 	rclcpp::Parameter pIPAddr("0. IP Addr", viewerParam.ipAddr);
@@ -797,6 +1085,7 @@ void roboscanPublisher::initialise()
 
 	viewerParam.saveParam = false;
 	reconfigure = false;
+	parameters_ready_ = true;
 	
 	RCLCPP_INFO(this->get_logger(),"end initialise()\n");
 }
@@ -915,8 +1204,6 @@ void roboscanPublisher::publishFrame(NslPCD *frame, NslVec3b *rgbframe)
 {
 	static rclcpp::Clock s_rclcpp_clock;
 	auto data_stamp = s_rclcpp_clock.now();
-
-//	std::chrono::system_clock::time_point update_start = std::chrono::system_clock::now();
 
 	cv::Mat distanceMat(frame->height, frame->width, CV_8UC3, Scalar(255, 255, 255));	// distance
 	cv::Mat amplitudeMat(frame->height, frame->width, CV_8UC3, Scalar(255, 255, 255));	// amplitude
@@ -1098,7 +1385,63 @@ void roboscanPublisher::publishFrame(NslPCD *frame, NslVec3b *rgbframe)
 		pcl::toROSMsg(*cloud, msg);
 		msg.header.stamp = data_stamp;
 		msg.header.frame_id = viewerParam.frame_id;
-		pointcloudPub->publish(msg);  
+		pointcloudPub->publish(msg);
+
+		if( rgbframe != nullptr && (
+			frame->operationMode == OPERATION_MODE_OPTIONS::RGB_DISTANCE_MODE ||
+			frame->operationMode == OPERATION_MODE_OPTIONS::RGB_DISTANCE_AMPLITUDE_MODE ||
+			frame->operationMode == OPERATION_MODE_OPTIONS::RGB_DISTANCE_GRAYSCALE_MODE) )
+		{
+			if (calib_.loaded) {
+				publishCalibratedRgbCloud(frame, rgbframe, data_stamp);
+			} else {
+				const float scaleX = static_cast<float>(NSL_RGB_IMAGE_WIDTH)  / frame->width;
+				const float scaleY = static_cast<float>(NSL_RGB_IMAGE_HEIGHT) / frame->height;
+
+				pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloudRgb(new pcl::PointCloud<pcl::PointXYZRGB>());
+				cloudRgb->header.frame_id = viewerParam.frame_id;
+				cloudRgb->header.stamp = pcl_conversions::toPCL(data_stamp);
+				cloudRgb->width  = static_cast<uint32_t>(frame->width);
+				cloudRgb->height = static_cast<uint32_t>(frame->height);
+				cloudRgb->is_dense = false;
+				cloudRgb->points.resize(nPixel);
+
+				for(int y = 0, index = 0; y < frame->height; y++)
+				{
+					for(int x = 0; x < frame->width; x++, index++)
+					{
+						pcl::PointXYZRGB &pt = cloudRgb->points[index];
+
+						if( frame->distance3D[OUT_Z][y+yMin][x+xMin] < NSL_LIMIT_FOR_VALID_DATA )
+						{
+							pt.x = (double)(frame->distance3D[OUT_Z][y+yMin][x+xMin]/1000);
+							pt.y = (double)(-frame->distance3D[OUT_X][y+yMin][x+xMin]/1000);
+							pt.z = (double)(-frame->distance3D[OUT_Y][y+yMin][x+xMin]/1000);
+
+							int rgbX = std::min(static_cast<int>(x * scaleX), NSL_RGB_IMAGE_WIDTH  - 1);
+							int rgbY = std::min(static_cast<int>(y * scaleY), NSL_RGB_IMAGE_HEIGHT - 1);
+							const NslVec3b &color = rgbframe[rgbY * NSL_RGB_IMAGE_WIDTH + rgbX];
+							pt.r = color.r;
+							pt.g = color.g;
+							pt.b = color.b;
+						}
+						else
+						{
+							pt.x = std::numeric_limits<float>::quiet_NaN();
+							pt.y = std::numeric_limits<float>::quiet_NaN();
+							pt.z = std::numeric_limits<float>::quiet_NaN();
+							pt.r = 0; pt.g = 0; pt.b = 0;
+						}
+					}
+				}
+
+				sensor_msgs::msg::PointCloud2 msgRgb;
+				pcl::toROSMsg(*cloudRgb, msgRgb);
+				msgRgb.header.stamp = data_stamp;
+				msgRgb.header.frame_id = viewerParam.frame_id;
+				pointcloudRgbPub->publish(msgRgb);
+			}
+		}
 	}
 	
 	if(viewerParam.cvShow == true)
@@ -1144,7 +1487,7 @@ void roboscanPublisher::publishFrame(NslPCD *frame, NslVec3b *rgbframe)
 		imshow(winName, distanceMat);
 		waitKey(1);
 	}
-	
+
 }
 
 
