@@ -671,10 +671,12 @@ void roboscanPublisher::publishCalibratedRgbCloud(
     const double* Rd = calib_.R.ptr<double>();
     const double* td = calib_.tvec.ptr<double>();
 
-    std::vector<cv::Point3d> cam_pts;
-    std::vector<int>         pix_idx;
-    cam_pts.reserve(static_cast<size_t>(frame->width * frame->height));
-    pix_idx.reserve(static_cast<size_t>(frame->width * frame->height));
+    // Reused across frames to avoid per-frame heap churn (single publisher thread).
+    static thread_local std::vector<cv::Point3d> cam_pts;   // camera frame — projection input
+    static thread_local std::vector<cv::Point3f> lidar_pts; // lidar frame — published xyz
+    const size_t cap = static_cast<size_t>(frame->width * frame->height);
+    cam_pts.clear();   cam_pts.reserve(cap);
+    lidar_pts.clear(); lidar_pts.reserve(cap);
 
     for (int y = 0; y < frame->height; ++y) {
         for (int x = 0; x < frame->width; ++x) {
@@ -691,13 +693,15 @@ void roboscanPublisher::publishCalibratedRgbCloud(
             if (cz <= 0.05) continue;
 
             cam_pts.emplace_back(cx, cy, cz);
-            pix_idx.push_back(y * frame->width + x);
+            lidar_pts.emplace_back(static_cast<float>(lx),
+                                   static_cast<float>(ly),
+                                   static_cast<float>(lz));
         }
     }
 
     if (cam_pts.empty()) return;
 
-    std::vector<cv::Point2d> img_pts;
+    static thread_local std::vector<cv::Point2d> img_pts;
     cv::Mat zeros3 = cv::Mat::zeros(3, 1, CV_64F);
     if (calib_.fisheye) {
         // fisheye::projectPoints needs Nx1x3 Mat
@@ -718,14 +722,11 @@ void roboscanPublisher::publishCalibratedRgbCloud(
         int v = static_cast<int>(std::round(img_pts[i].y));
         if (u < 0 || u >= NSL_RGB_IMAGE_WIDTH || v < 0 || v >= NSL_RGB_IMAGE_HEIGHT) continue;
 
-        int fi = pix_idx[i];
-        int py = fi / frame->width;
-        int px = fi % frame->width;
-
+        const cv::Point3f& lp = lidar_pts[i];
         pcl::PointXYZRGB pt;
-        pt.x = static_cast<float>(frame->distance3D[OUT_Z][py+yMin][px+xMin] / 1000.0);
-        pt.y = static_cast<float>(-frame->distance3D[OUT_X][py+yMin][px+xMin] / 1000.0);
-        pt.z = static_cast<float>(-frame->distance3D[OUT_Y][py+yMin][px+xMin] / 1000.0);
+        pt.x = lp.x;
+        pt.y = lp.y;
+        pt.z = lp.z;
         const cv::Vec3b& bgr = rgb_img.at<cv::Vec3b>(v, u);
         pt.b = bgr[0]; pt.g = bgr[1]; pt.r = bgr[2];
         cloudRgb.points.push_back(pt);
@@ -734,9 +735,10 @@ void roboscanPublisher::publishCalibratedRgbCloud(
     auto t1 = std::chrono::steady_clock::now();
     double ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
     if (ms > 10.0) {
+        // Informational only — publish anyway. Discarding an already-computed
+        // cloud just because it ran long wastes the work and drops frames.
         RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 5000,
-            "RGB projection %.1f ms > 10 ms — skipping publish", ms);
-        return;
+            "RGB projection slow: %.1f ms", ms);
     }
 
     cloudRgb.width    = static_cast<uint32_t>(cloudRgb.points.size());
