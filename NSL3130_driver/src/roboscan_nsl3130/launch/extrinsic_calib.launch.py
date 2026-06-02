@@ -7,6 +7,8 @@ Usage:
   ros2 launch roboscan_nsl3130 extrinsic_calib.launch.py
   ros2 launch roboscan_nsl3130 extrinsic_calib.launch.py camera_id:=N00A5060D
   ros2 launch roboscan_nsl3130 extrinsic_calib.launch.py lidar_topic:=/camera/point_cloud
+  ros2 launch roboscan_nsl3130 extrinsic_calib.launch.py amplitude_topic:=/roboscanAmpl
+  ros2 launch roboscan_nsl3130 extrinsic_calib.launch.py points_per_frame:=5
 
 Requires: camera.launch.py running + intrinsic_calib done first.
 """
@@ -24,6 +26,8 @@ def _launch_setup(context):
     camera_id   = LaunchConfiguration('camera_id').perform(context)
     image_topic = LaunchConfiguration('image_topic').perform(context)
     lidar_topic = LaunchConfiguration('lidar_topic').perform(context)
+    amplitude_topic = LaunchConfiguration('amplitude_topic').perform(context)
+    points_per_frame = LaunchConfiguration('points_per_frame').perform(context)
 
     pkg_share     = get_package_share_directory('roboscan_nsl3130')
     ws_root       = os.path.normpath(os.path.join(pkg_share, '..', '..', '..', '..'))
@@ -43,7 +47,8 @@ def _launch_setup(context):
                   ' extrinsic_calib.sh will fall back to intrinsic.yml.')
 
     return [ExecuteProcess(
-        cmd=['bash', sh_path, camera_id, image_topic, lidar_topic],
+        cmd=['bash', sh_path, camera_id, image_topic, lidar_topic,
+             amplitude_topic, points_per_frame],
         output='screen',
     )]
 
@@ -54,5 +59,9 @@ def generate_launch_description():
             description='Camera serial; auto-detected via detect_camera_id.py if empty'),
         DeclareLaunchArgument('image_topic',  default_value='/camera/rgb/image_raw'),
         DeclareLaunchArgument('lidar_topic',  default_value='/camera/point_cloud'),
+        DeclareLaunchArgument('amplitude_topic', default_value='/roboscanAmpl',
+            description='LiDAR amplitude image topic; empty string disables assisted picker'),
+        DeclareLaunchArgument('points_per_frame', default_value='5',
+            description='Number of RGB/LiDAR marker correspondences stored per frame'),
         OpaqueFunction(function=_launch_setup),
     ])

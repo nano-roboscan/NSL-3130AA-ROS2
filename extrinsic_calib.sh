@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # Extrinsic calibration for NSL-3130AA (LiDAR <-> Camera).
 #
-# Usage: ./extrinsic_calib.sh [camera_id] [image_topic] [lidar_topic]
-#   camera_id   : camera serial or ID; auto-detected from calib_output if omitted
-#   image_topic : ROS topic for RGB image   (default /camera/rgb/image_raw)
-#   lidar_topic : ROS topic for point cloud (default /camera/point_cloud)
+# Usage: ./extrinsic_calib.sh [camera_id] [image_topic] [lidar_topic] [amplitude_topic] [points_per_frame]
+#   camera_id        : camera serial or ID; auto-detected from calib_output if omitted
+#   image_topic      : ROS topic for RGB image   (default /camera/rgb/image_raw)
+#   lidar_topic      : ROS topic for point cloud (default /camera/point_cloud)
+#   amplitude_topic  : ROS topic for amplitude image (default /roboscanAmpl, empty disables assisted picker)
+#   points_per_frame : number of marker correspondences stored per frame (default 5)
 #
 # Requires:
 #   1. camera.launch.py running (provides image + point_cloud topics)
@@ -18,6 +20,8 @@
 CAMERA_ID="${1:-}"
 IMAGE_TOPIC="${2:-/camera/rgb/image_raw}"
 LIDAR_TOPIC="${3:-/camera/point_cloud}"
+AMPLITUDE_TOPIC="${4:-/roboscanAmpl}"
+POINTS_PER_FRAME="${5:-5}"
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CALIB_DIR="$REPO_DIR/calib_output"
@@ -46,6 +50,7 @@ fi
 
 echo ""
 echo "  Camera: $CAMERA_ID    Image: $IMAGE_TOPIC    LiDAR: $LIDAR_TOPIC"
+echo "  Amplitude: ${AMPLITUDE_TOPIC:-disabled}    Points/frame: $POINTS_PER_FRAME"
 echo "  Output: $CALIB_DIR"
 echo ""
 
@@ -53,4 +58,6 @@ ros2 run roboscan_nsl3130 extrinsic_calibration_node.py \
     --camera-id   "$CAMERA_ID" \
     --image-topic "$IMAGE_TOPIC" \
     --lidar-topic "$LIDAR_TOPIC" \
+    --amplitude-topic "$AMPLITUDE_TOPIC" \
+    --points-per-frame "$POINTS_PER_FRAME" \
     --output-dir  "$CALIB_DIR"

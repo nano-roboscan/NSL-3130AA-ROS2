@@ -1,0 +1,32 @@
+# Per-device sensor profile — N008B060D (dim unit: weak amplitude, no saturation)
+# Auto-loaded by camera.launch.py when this camera (USB serial) is connected.
+# Tuned for max FOV coverage on this dim device: very low MinAmplitude, filters off.
+# Edit live in rqt_reconfigure — saves back here.
+IP Addr: 192.168.2.220
+Net Mask: 255.255.255.0
+GW Addr: 192.168.2.1
+USB Path:
+MaxDistance: 12500
+PointColud EDGE: 200
+ImageType: RGB_DISTANCE_AMPLITUDE
+LensType: LENS_SF
+LidarAngle: 0
+IsReference: true
+HDRMode: HDR_Temporal
+IntegrationTime3D: 350
+IntegrationTimeHdr1: 700
+IntegrationTimeHdr2: 80
+IntegrationTimeGray: 100
+MinAmplitude: 2
+Modulation: MOD_12Mhz
+Channel: 0
+MedianFilter: true
+GaussianFilter: true
+TemporalFilterFactor: 300
+TemporalFilterThreshold: 200
+EdgeFilterThreshold: 0
+InterferenceDetectionLimit: 0
+UseLastValue: false
+DualBeam: DB_6Mhz
+DualBeamOption: DB_CORRECTION
+GrayscaleLED: false

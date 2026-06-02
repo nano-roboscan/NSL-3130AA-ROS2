@@ -93,7 +93,14 @@ roboscanPublisher::roboscanPublisher() :
     pointcloudRgbPub = this->create_publisher<sensor_msgs::msg::PointCloud2>("roboscanPointCloudRgb", qos_profile);
 
 //	yaml_path_ = std::string(std::getenv("HOME")) + "/lidar_params.yaml";
-	yaml_path_ = ament_index_cpp::get_package_share_directory("roboscan_nsl3130") + "/lidar_params.yaml";
+	// NSL_PARAMS_FILE lets camera.launch.py pick a profile (general vs calibration).
+	// Defaults to the installed general profile when the env var is unset/empty.
+	{
+		const char* env_params = std::getenv("NSL_PARAMS_FILE");
+		yaml_path_ = (env_params && env_params[0] != '\0')
+			? std::string(env_params)
+			: ament_index_cpp::get_package_share_directory("roboscan_nsl3130") + "/lidar_params.yaml";
+	}
 
     callback_handle_ = this->add_on_set_parameters_callback(std::bind(&roboscanPublisher::parametersCallback, this, std::placeholders::_1));
 

@@ -121,7 +121,7 @@ install(DIRECTORY launch
   DESTINATION share/${PROJECT_NAME}
 )
 
-install(FILES lidar_params.yaml
+install(FILES lidar_params.yaml lidar_params_calibration.yaml
   DESTINATION share/${PROJECT_NAME}
 )
 
@@ -133,6 +133,7 @@ install(PROGRAMS
   scripts/detect_camera_id.py
   scripts/intrinsic_calibration_node.py
   scripts/extrinsic_calibration_node.py
+  scripts/extrinsic_tf_node.py
   scripts/verify_intrinsic.py
   DESTINATION lib/${PROJECT_NAME}
 )
