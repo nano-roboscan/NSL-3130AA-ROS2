@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import os
+import re
 import shutil
 import subprocess
 
@@ -35,13 +36,43 @@ def generate_launch_description():
     general_params = os.path.join(pkg_share, 'lidar_params.yaml')
     calib_params   = os.path.join(pkg_share, 'lidar_params_calibration.yaml')
 
-    def _resolve_params_file(context):
+    def _detect_serial():
+        """Return the USB serial of the attached camera ('' if none)."""
+        try:
+            return subprocess.check_output(
+                ['python3', detect_script], text=True,
+                stderr=subprocess.DEVNULL).strip()
+        except Exception:
+            return ''
+
+    def _resolve_namespace(context, serial):
+        """Resolve the per-device namespace so topics come up as /<device_id>/<topic>
+
+          namespace:=auto    → the camera serial (device id); DEFAULT.
+                               Falls back to '' (no namespace) when no serial detected.
+          namespace:=''      → no namespace → /point_cloud, /rgb/image_raw, ...
+          namespace:=<name>  → used verbatim.
+        """
+        ns = LaunchConfiguration('namespace').perform(context).strip().strip('/')
+        if ns.lower() == 'auto':
+            if serial:
+                ns = re.sub(r'[^A-Za-z0-9_]', '_', serial)   # ROS name-safe
+                if ns[0].isdigit():
+                    ns = '_' + ns
+            else:
+                ns = ''
+                print('[camera] namespace:=auto but no serial detected → running without namespace')
+        if ns:
+            print(f'[camera] namespace: /{ns}  (topics → /{ns}/point_cloud, /{ns}/rgb/image_raw, ...)')
+        return ns
+
+    def _resolve_params_file(context, serial):
         """Pick the sensor-params file for the driver.
 
         Priority:
           calibration:=true  → shared calibration profile
           else, USB serial detected:
-              {calib_dir}/{serial}_params.yaml  (created from the general default
+              {calib_dir}/{serial}/params.yaml  (created from the general default
               on first run, so each camera keeps & persists its own tuning)
           else (no serial)   → general default (zzapzzap baseline)
         """
@@ -51,23 +82,16 @@ def generate_launch_description():
             print(f'[camera] sensor params: {calib_params}  [calibration profile]')
             return calib_params
 
-        serial = ''
-        try:
-            serial = subprocess.check_output(
-                ['python3', detect_script], text=True,
-                stderr=subprocess.DEVNULL).strip()
-        except Exception:
-            serial = ''
-
         if not serial:
             print(f'[camera] sensor params: {general_params}  '
                   f'[general default — no camera id detected]')
             return general_params
 
-        dev_file = os.path.join(calib_dir, f'{serial}_params.yaml')
+        dev_dir = os.path.join(calib_dir, serial)
+        dev_file = os.path.join(dev_dir, 'params.yaml')
         if not os.path.exists(dev_file):
             try:
-                os.makedirs(calib_dir, exist_ok=True)
+                os.makedirs(dev_dir, exist_ok=True)
                 shutil.copy(general_params, dev_file)
                 print(f'[camera] seeded per-device params from general default → {dev_file}')
             except OSError as e:
@@ -76,11 +100,44 @@ def generate_launch_description():
         print(f'[camera] sensor params: {dev_file}  [per-device: {serial}]')
         return dev_file
 
-    def _driver_setup(context):
-        params_file = _resolve_params_file(context)
-        return [Node(
+    def _abs_topic(ns, topic):
+        """Resolve a (possibly relative) topic into the absolute name the node
+        will publish on, accounting for the namespace. Used for the standalone
+        extrinsic_tf process which is not itself inside the namespace."""
+        rel = topic.lstrip('/')
+        return f'/{ns}/{rel}' if ns else f'/{rel}'
+
+    def _rviz_config(ns, serial):
+        """Bundled rviz config points at /camera/... and a sample serial frame.
+        Rewrite a temp copy so rviz subscribes to the live topics: /camera/<x>
+        becomes /<ns>/<x> (or /<x> when no namespace), and the sample serial frame
+        becomes this camera's (Fixed Frame stays 'reference_lidar_frame')."""
+        prefix = f'/{ns}/' if ns else '/'
+        try:
+            with open(rviz_config) as f:
+                content = f.read()
+            content = content.replace('/camera/', prefix)
+            if serial:
+                content = content.replace('N00A5060D', serial)
+            out = os.path.join('/tmp', f'roboscan_{ns or "nons"}.rviz')
+            with open(out, 'w') as f:
+                f.write(content)
+            return out
+        except OSError:
+            return rviz_config
+
+    def _is_true(context, arg):
+        return LaunchConfiguration(arg).perform(context).strip().lower() in ('true', '1', 'yes')
+
+    def _fleet_setup(context):
+        serial = _detect_serial()
+        ns = _resolve_namespace(context, serial)
+        params_file = _resolve_params_file(context, serial)
+
+        actions = [Node(
             package='roboscan_nsl3130',
             executable='roboscan_publish_node',
+            namespace=ns or None,            # '' → no namespace
             output='screen',
             parameters=params if params else None,
             additional_env={'NSL_CALIB_DIR': calib_dir,
@@ -92,8 +149,30 @@ def generate_launch_description():
                 ('roboscanPointCloudRgb', LaunchConfiguration('point_cloud_rgb_topic').perform(context)),
             ])]
 
+        # Extrinsic → TF. Runs outside the namespace (publishes serial-prefixed
+        # frames to the global /tf), so it needs the absolute point-cloud topic.
+        if _is_true(context, 'use_extrinsic_tf'):
+            lidar_topic = _abs_topic(ns, LaunchConfiguration('point_cloud_topic').perform(context))
+            actions.append(ExecuteProcess(
+                cmd=['python3', extrinsic_tf_script,
+                     '--calib-dir', calib_dir,
+                     '--lidar-topic', lidar_topic],
+                output='screen'))
+
+        # rviz2 (config rewritten for the namespace so the bundled view still works)
+        if _is_true(context, 'use_rviz'):
+            actions.append(Node(
+                package='rviz2', executable='rviz2', name='rviz2',
+                arguments=['-d', _rviz_config(ns, serial)], output='screen'))
+        return actions
+
     return LaunchDescription([
         # ── General ──────────────────────────────────────────────────────────
+        DeclareLaunchArgument(
+            'namespace', default_value='auto',
+            description="Per-device topic namespace. 'auto'=camera serial → "
+                        "/<serial>/point_cloud, /<serial>/rgb/image_raw, ... (DEFAULT); "
+                        "''=none; or an explicit name."),
         DeclareLaunchArgument(
             'use_rviz', default_value='true',
             description='Launch rviz2 with the default config'),
@@ -106,27 +185,15 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'calibration', default_value='false',
             description='true → shared calibration sensor profile (board-tuned); '
-                        'false → per-camera profile (calib_output/{id}_params.yaml), '
+                        'false → per-camera profile (calib_output/{id}/params.yaml), '
                         'falling back to the general default'),
-        # ── Topic remap targets (azure_kinect-compatible) ─────────────────────
-        DeclareLaunchArgument('rgb_topic',           default_value='/camera/rgb/image_raw'),
-        DeclareLaunchArgument('depth_topic',         default_value='/camera/depth/image_raw'),
-        DeclareLaunchArgument('point_cloud_topic',     default_value='/camera/point_cloud'),
-        DeclareLaunchArgument('point_cloud_rgb_topic', default_value='/camera/point_cloud_rgb'),
-        # ── Driver node (per-device sensor profile resolved at launch) ─────────
-        OpaqueFunction(function=_driver_setup),
-        # ── Extrinsic → TF ({lidar_frame} → {id}_camera_frame) ────────────────
-        ExecuteProcess(
-            cmd=['python3', extrinsic_tf_script,
-                 '--calib-dir', calib_dir,
-                 '--lidar-topic', LaunchConfiguration('point_cloud_topic')],
-            output='screen',
-            condition=conditions.IfCondition(LaunchConfiguration('use_extrinsic_tf'))),
-        # ── rviz2 ─────────────────────────────────────────────────────────────
-        Node(
-            package='rviz2', executable='rviz2', name='rviz2',
-            arguments=['-d', rviz_config], output='screen',
-            condition=conditions.IfCondition(LaunchConfiguration('use_rviz'))),
+        # ── Topic remap targets (relative → nest under namespace; no namespace → /<topic>) ──
+        DeclareLaunchArgument('rgb_topic',             default_value='rgb/image_raw'),
+        DeclareLaunchArgument('depth_topic',           default_value='depth/image_raw'),
+        DeclareLaunchArgument('point_cloud_topic',     default_value='point_cloud'),
+        DeclareLaunchArgument('point_cloud_rgb_topic', default_value='point_cloud_rgb'),
+        # ── Driver node + extrinsic TF + rviz (namespace & profile resolved at launch) ──
+        OpaqueFunction(function=_fleet_setup),
         # ── rqt parameter reconfigure (delayed to let the node spin first) ──────
         TimerAction(
             period=12.0,

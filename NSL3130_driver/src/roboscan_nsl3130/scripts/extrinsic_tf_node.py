@@ -92,7 +92,7 @@ class ExtrinsicTfNode(Node):
             camera_id = (lidar_frame[:-len('_lidar_frame')]
                          if lidar_frame.endswith('_lidar_frame') else lidar_frame)
 
-        yml = self._calib_dir / f'{camera_id}_extrinsic.yml'
+        yml = self._calib_dir / camera_id / 'extrinsic.yml'
         if not yml.exists():
             if not self._warned:
                 self.get_logger().warn(

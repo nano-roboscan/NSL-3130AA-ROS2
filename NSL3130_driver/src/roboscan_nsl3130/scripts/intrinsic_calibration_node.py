@@ -244,9 +244,9 @@ def main():
     w_str, h_str = args.size.lower().split('x')
     board_wh = (int(w_str), int(h_str))
 
-    output_dir  = Path(os.path.expanduser(args.output_dir))
+    output_dir  = Path(os.path.expanduser(args.output_dir)) / args.camera_id
     output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = output_dir / f'{args.camera_id}_intrinsic.yml'
+    output_path = output_dir / 'intrinsic.yml'
 
     archive_path = '/tmp/calibrationdata.tar.gz'
 

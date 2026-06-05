@@ -560,18 +560,18 @@ void roboscanPublisher::publishWorldTf()
             "[TF] is_reference=true: reference_lidar_frame → %s (identity)",
             viewerParam.frame_id.c_str());
     } else {
-        // Non-reference camera: load R|t from {camera_id}_to_reference.yml
+        // Non-reference camera: load R|t from {camera_id}/to_reference.yml
         const char* env = std::getenv("NSL_CALIB_DIR");
         const std::string dir = env
             ? std::string(env) + "/"
             : std::filesystem::current_path().string() + "/calib_output/";
-        const std::string yml = dir + viewerParam.camera_id + "_to_reference.yml";
+        const std::string yml = dir + viewerParam.camera_id + "/to_reference.yml";
 
         cv::FileStorage fs(yml, cv::FileStorage::READ);
         if (!fs.isOpened()) {
             RCLCPP_WARN(get_logger(),
                 "[Need R|t] %s not found — TF for '%s' not published.\n"
-                "  Create calib_output/%s_to_reference.yml with R|t to register this camera.",
+                "  Create calib_output/%s/to_reference.yml with R|t to register this camera.",
                 yml.c_str(), viewerParam.camera_id.c_str(), viewerParam.camera_id.c_str());
             return;
         }
@@ -611,8 +611,8 @@ void roboscanPublisher::tryLoadCalibParams()
     const std::string dir = env_calib
         ? std::string(env_calib) + "/"
         : std::filesystem::current_path().string() + "/calib_output/";
-    const std::string intr = dir + viewerParam.camera_id + "_intrinsic.yml";
-    const std::string extr = dir + viewerParam.camera_id + "_extrinsic.yml";
+    const std::string intr = dir + viewerParam.camera_id + "/intrinsic.yml";
+    const std::string extr = dir + viewerParam.camera_id + "/extrinsic.yml";
 
     if (!std::filesystem::exists(intr) || !std::filesystem::exists(extr)) {
         calib_.loaded = false;

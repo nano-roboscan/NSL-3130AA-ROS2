@@ -7,11 +7,11 @@ Result is x_cam = R · x_lidar + t  (LiDAR frame → Camera frame).
 
 Intrinsic source priority:
   a. --camera-info-yaml (explicit path)
-  b. {output_dir}/{camera_id}_intrinsic.yml  (OpenCV FileStorage)
+  b. {output_dir}/{camera_id}/intrinsic.yml  (OpenCV FileStorage)
   c. ~/.ros/camera_info/camera_{camera_id}.yaml (ROS format)
-  d. Live /camera/rgb/camera_info topic
-Output: {output_dir}/{camera_id}_extrinsic.yml (OpenCV FileStorage, R 3x3 + t 3x1).
-Dataset/corner files in {output_dir}/extrinsic_{camera_id}/.
+  d. Live camera_info topic
+Output: {output_dir}/{camera_id}/extrinsic.yml (OpenCV FileStorage, R 3x3 + t 3x1).
+Dataset/corner files in {output_dir}/{camera_id}/extrinsic/.
 
 Workflow:
   1. Launch alongside camera + lidar drivers.
@@ -370,7 +370,7 @@ def _drain_queue(q, proc):
 
 def _save_pair_debug(dataset_path, camera_id, idx, amplitude, img_bgr, amp_pixels, rgb_pts):
     """Side-by-side amplitude | RGB image with matching numbered markers for review."""
-    ddir = Path(dataset_path) / f'debug_{camera_id}'
+    ddir = Path(dataset_path) / 'debug'
     ddir.mkdir(parents=True, exist_ok=True)
 
     amp_c = cv2.applyColorMap((_amp_to_display(amplitude) * 255).astype(np.uint8),
@@ -442,10 +442,10 @@ def _store_one_frame(img_bgr, organized, amplitude, now_sec,
 
     # ── 3) Atomic commit (both CSVs together) ─────────────────────────────────
     dp.mkdir(parents=True, exist_ok=True)
-    (dp / f'pointclouds_{camera_id}').mkdir(parents=True, exist_ok=True)
-    (dp / f'images_{camera_id}').mkdir(parents=True, exist_ok=True)
-    total3 = _append_points_csv(dp / f'3D_corners_{camera_id}.csv', pts3, 3)
-    _append_points_csv(dp / f'2D_corners_{camera_id}.csv', pts2, 2)
+    (dp / 'pointclouds').mkdir(parents=True, exist_ok=True)
+    (dp / 'images').mkdir(parents=True, exist_ok=True)
+    total3 = _append_points_csv(dp / '3D_corners.csv', pts3, 3)
+    _append_points_csv(dp / '2D_corners.csv', pts2, 2)
     set_idx = total3 // expected_n - 1
 
     roi = res3.get('roi_points')
@@ -457,8 +457,8 @@ def _store_one_frame(img_bgr, organized, amplitude, now_sec,
             np.tile([0, 0, 255], (len(pts3), 1)),                   # each pick → one blue point
         ]).astype(np.uint32)
         _save_pcd_rgb(cloud, colors,
-                      str(dp / f'pointclouds_{camera_id}' / f'{set_idx:02d}.pcd'))
-    cv2.imwrite(str(dp / f'images_{camera_id}' / f'{set_idx:02d}.jpg'), img_bgr)
+                      str(dp / 'pointclouds' / f'{set_idx:02d}.pcd'))
+    cv2.imwrite(str(dp / 'images' / f'{set_idx:02d}.jpg'), img_bgr)
     dbg = _save_pair_debug(dataset_path, camera_id, set_idx,
                            amplitude, img_bgr, res3['pixels'], res2['points_2d'])
 
@@ -818,7 +818,7 @@ class ExtrinsicCalibNode(Node):
 
         # ── Intrinsics source (priority order) ───────────────────────────────
         yaml_path    = params.get('camera_info_yaml', '')
-        cv_yml_path  = output_dir / f'{name}_intrinsic.yml'
+        cv_yml_path  = output_dir / name / 'intrinsic.yml'
         ros_yml_path = Path.home() / '.ros' / 'camera_info' / f'camera_{name}.yaml'
 
         if yaml_path and Path(yaml_path).exists():
@@ -945,11 +945,11 @@ class ExtrinsicCalibNode(Node):
                   f'{[round(float(x), 4) for x in cam_in_lidar]}  (m)', flush=True)
             print('[c] ───────────────────────────────────────────────────────\n', flush=True)
 
-        out = Path(os.path.expanduser(p['output_dir']))
+        out = Path(os.path.expanduser(p['output_dir'])) / name
         out.mkdir(parents=True, exist_ok=True)
 
         # x_cam = R · x_lidar + t  (LiDAR frame → Camera frame)
-        extr_path = out / f'{name}_extrinsic.yml'
+        extr_path = out / 'extrinsic.yml'
         fs = cv2.FileStorage(str(extr_path), cv2.FILE_STORAGE_WRITE)
         fs.write('camera_id', name)
         fs.write('R', R_mat)
@@ -974,7 +974,7 @@ class ExtrinsicCalibNode(Node):
             'cx_rectified': float(P[0, 2]), 'cy_rectified': float(P[1, 2]),
             'rmse_px': round(float(rmse), 4),
         }
-        cam_path = out / f'camera_info_{name}.yaml'
+        cam_path = out / 'camera_info.yaml'
         cam_path.write_text(yaml.dump(cy, default_flow_style=False))
         self.get_logger().info(f'[Cam info saved]      {cam_path}')
         return True
@@ -1055,15 +1055,15 @@ def main():
 
     camera_id   = args.camera_id
     output_dir  = os.path.expanduser(args.output_dir)
-    dataset_path = os.path.join(output_dir, f'extrinsic_{camera_id}')
+    dataset_path = os.path.join(output_dir, camera_id, 'extrinsic')
 
     # Guard: intrinsic file must exist before extrinsic calibration
-    intr_file = Path(output_dir) / f'{camera_id}_intrinsic.yml'
+    intr_file = Path(output_dir) / camera_id / 'intrinsic.yml'
     if not intr_file.exists():
-        candidates = sorted(Path(output_dir).glob('*_intrinsic.yml')) if Path(output_dir).exists() else []
+        candidates = sorted(Path(output_dir).glob('*/intrinsic.yml')) if Path(output_dir).exists() else []
         print(f'\n[ERROR] Intrinsic file not found: {intr_file}')
         if candidates:
-            detected_id = candidates[0].stem.replace('_intrinsic', '')
+            detected_id = candidates[0].parent.name
             print(f'        Found: {candidates[0]}')
             print(f'        Re-run with the correct camera_id:')
             print(f'          ./extrinsic_calib.sh {detected_id}')

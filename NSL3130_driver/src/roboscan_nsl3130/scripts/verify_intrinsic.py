@@ -119,7 +119,7 @@ def main():
     ap.add_argument('--balance',     type=float, default=0.5)
     args, ros_args = ap.parse_known_args()
 
-    calib_path = str(Path(args.calib_dir) / f'{args.camera_id}_intrinsic.yml')
+    calib_path = str(Path(args.calib_dir) / args.camera_id / 'intrinsic.yml')
     if not Path(calib_path).exists():
         print(f'[verify] ERROR: {calib_path} not found.')
         print(f'         Run intrinsic_calib.launch.py first.')

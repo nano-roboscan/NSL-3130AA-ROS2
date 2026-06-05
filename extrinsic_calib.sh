@@ -3,8 +3,8 @@
 #
 # Usage: ./extrinsic_calib.sh [camera_id] [image_topic] [lidar_topic] [amplitude_topic] [points_per_frame]
 #   camera_id        : camera serial or ID; auto-detected from calib_output if omitted
-#   image_topic      : ROS topic for RGB image   (default /camera/rgb/image_raw)
-#   lidar_topic      : ROS topic for point cloud (default /camera/point_cloud)
+#   image_topic      : ROS topic for RGB image   (default /rgb/image_raw)
+#   lidar_topic      : ROS topic for point cloud (default /point_cloud)
 #   amplitude_topic  : ROS topic for amplitude image (default /roboscanAmpl, empty disables assisted picker)
 #   points_per_frame : number of marker correspondences stored per frame (default 5)
 #
@@ -15,11 +15,11 @@
 # Interactive keys (once running):
 #   [s] store frame  [c] calibrate  [r] reset  [q] quit
 #
-# Output: <repo>/calib_output/<camera_id>_extrinsic.yml
+# Output: <repo>/calib_output/<camera_id>/extrinsic.yml
 
 CAMERA_ID="${1:-}"
-IMAGE_TOPIC="${2:-/camera/rgb/image_raw}"
-LIDAR_TOPIC="${3:-/camera/point_cloud}"
+IMAGE_TOPIC="${2:-/rgb/image_raw}"
+LIDAR_TOPIC="${3:-/point_cloud}"
 AMPLITUDE_TOPIC="${4:-/roboscanAmpl}"
 POINTS_PER_FRAME="${5:-5}"
 
@@ -37,13 +37,13 @@ if [ -z "$CAMERA_ID" ]; then
     if [ -n "$CAMERA_ID" ]; then
         echo "[extrinsic] Auto-detected camera_id: $CAMERA_ID"
     else
-        YML=$(ls "$CALIB_DIR"/*_intrinsic.yml 2>/dev/null | head -1)
+        YML=$(ls "$CALIB_DIR"/*/intrinsic.yml 2>/dev/null | head -1)
         if [ -z "$YML" ]; then
-            echo "[ERROR] Camera not detected via USB and no *_intrinsic.yml found in $CALIB_DIR"
+            echo "[ERROR] Camera not detected via USB and no */intrinsic.yml found in $CALIB_DIR"
             echo "        Connect the camera, or run ./intrinsic_calib.sh first."
             exit 1
         fi
-        CAMERA_ID=$(basename "$YML" _intrinsic.yml)
+        CAMERA_ID=$(basename "$(dirname "$YML")")
         echo "[extrinsic] Using camera_id from intrinsic.yml: $CAMERA_ID"
     fi
 fi

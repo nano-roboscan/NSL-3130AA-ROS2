@@ -68,7 +68,7 @@ namespace nanosys {
 		std::string	netMask;
 		std::string	gwAddr;
 		std::string	usbPath;
-		std::string camera_id;   // matches {ID}_intrinsic.yml / {ID}_extrinsic.yml
+		std::string camera_id;   // matches calib_output/{ID}/intrinsic.yml /extrinsic.yml
 		bool        is_reference = true;  // true → reference_lidar_frame; false → load {ID}_to_reference.yml
     };
 

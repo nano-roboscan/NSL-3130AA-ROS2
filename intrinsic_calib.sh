@@ -4,15 +4,15 @@
 # Usage: ./intrinsic_calib.sh [board_size] [square_size] [image_topic] [camera_id]
 #   board_size  : inner corners WxH           (default 8x13)
 #   square_size : square side in metres       (default 0.04)
-#   image_topic : ROS topic for RGB image     (default /camera/rgb/image_raw)
+#   image_topic : ROS topic for RGB image     (default /rgb/image_raw)
 #   camera_id   : ID tag written into YML     (default nsl)
 #
 # Requires: camera.launch.py running first (provides the image topic)
-# Output:   <repo>/calib_output/<camera_id>_intrinsic.yml
+# Output:   <repo>/calib_output/<camera_id>/intrinsic.yml
 
 BOARD_SIZE="${1:-8x13}"
 SQUARE_SIZE="${2:-0.04}"
-IMAGE_TOPIC="${3:-/camera/rgb/image_raw}"
+IMAGE_TOPIC="${3:-/rgb/image_raw}"
 CAMERA_ID="${4:-}"
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
